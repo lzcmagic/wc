@@ -2,138 +2,152 @@ import os
 import json
 from datetime import datetime
 import time
+import pandas as pd
+from tqdm import tqdm
+import numpy as np
 
 from data_fetcher import StockDataFetcher
 from core.config import config
+from core.indicators import calculate_indicators
 
 class BaseSelector:
     """
-    选股器基类，封装通用逻辑。
-    - 初始化数据获取器和配置
-    - 定义选股主流程框架
-    - 提供通用的结果保存和打印方法
+    选股器基类.
+    - 定义了选股流程的统一骨架 (run_selection).
+    - 封装了通用的市值过滤、结果保存/打印功能.
+    - 子类需要实现具体的评分逻辑 _apply_strategy.
     """
-    def __init__(self, strategy_name, strategy_config):
+    def __init__(self, strategy_name):
         self.strategy_name = strategy_name
-        self.config = strategy_config
-        self.fetcher = StockDataFetcher(config=config.DATA_FETCHER_CONFIG)
+        self.config = config.get_strategy_config(strategy_name)
+        self.fetcher = StockDataFetcher()
         self.results_dir = 'results'
-        self.today_str = datetime.now().strftime('%Y-%m-%d')
-
         if not os.path.exists(self.results_dir):
             os.makedirs(self.results_dir)
 
-    def run_selection(self):
-        """选股主流程模板"""
-        print(f"🚀 开始执行 [{self.strategy_name}] 策略 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("=" * 60)
+    def run_selection(self, for_date=None):
+        """
+        运行选股过程。
+        :param for_date: 如果提供，则为该历史日期运行选择，否则为今天。
+        """
+        run_date = for_date or datetime.now()
+        print(f"🚀 开始为日期 {run_date.strftime('%Y-%m-%d')} 运行 {self.strategy_name} 策略...")
 
-        try:
-            # 1. 获取候选股票列表
-            candidate_stocks = self._get_candidate_stocks()
-            if not candidate_stocks:
-                print("ℹ️ 没有获取到候选股票，任务结束。")
-                return []
-
-            # 2. 对候选股票进行评分
-            scored_stocks = self._score_stocks(candidate_stocks)
-            if not scored_stocks:
-                print("ℹ️ 没有符合评分要求的股票，任务结束。")
-                return []
-
-            # 3. 按评分排序并筛选最终结果
-            final_stocks = self._filter_and_sort(scored_stocks)
-            
-            # 4. 保存并打印结果
-            self._save_results(final_stocks)
-            self._print_results(final_stocks)
-
-            print("=" * 60)
-            print(f"✅ [{self.strategy_name}] 策略执行完成，推荐 {len(final_stocks)} 只股票。")
-            
-            return final_stocks
-
-        except Exception as e:
-            print(f"❌ 在执行策略 [{self.strategy_name}] 过程中发生严重错误: {e}")
+        # 1. 初步筛选
+        candidate_stocks = self._get_candidate_stocks(for_date=for_date)
+        if candidate_stocks.empty:
+            print("❌ 在初筛阶段未能找到任何候选股票。")
             return []
 
-    def _get_candidate_stocks(self):
-        """
-        获取候选股票列表。
-        这是一个抽象方法，需要由子类根据具体策略实现。
-        例如，可以实现基础的市值、名称筛选。
-        """
-        raise NotImplementedError("子类必须实现 `_get_candidate_stocks` 方法")
+        # 2. 评分
+        scored_stocks = self._score_stocks(candidate_stocks, for_date=for_date)
+        if not scored_stocks:
+            print("❌ 在评分阶段未能找到任何股票。")
+            return []
 
-    def _score_stocks(self, candidate_stocks):
+        # 3. 排序和选择
+        final_selection = self._filter_and_sort(scored_stocks)
+
+        print(f"✅ 成功选出 {len(final_selection)} 只股票。")
+        self.save_results(final_selection, for_date)
+        self.print_results(final_selection, for_date)
+        return final_selection
+
+    def _get_candidate_stocks(self, for_date=None):
+        """获取所有A股，并根据市值进行初步筛选"""
+        all_stocks = self.fetcher.get_stock_list(for_date=for_date)
+        if all_stocks.empty:
+            return pd.DataFrame()
+        return self._filter_by_market_cap(all_stocks)
+
+    def _filter_by_market_cap(self, df):
+        """根据配置中的市值要求过滤股票"""
+        max_cap = self.config.get('max_market_cap')
+        if max_cap and 'market_cap' in df.columns:
+            return df[df['market_cap'] <= max_cap].copy()
+        return df
+
+    def _score_stocks(self, candidate_stocks, for_date=None):
+        """为候选股票评分"""
+        period = self.config.get('period', 120)
+        results = []
+        total = len(candidate_stocks)
+
+        print(f"\n给 {total} 只候选股票进行评分...")
+        with tqdm(total=total, desc=f"{self.strategy_name} 评分进度") as pbar:
+            for index, row in candidate_stocks.iterrows():
+                stock_code = row['code']
+                stock_name = row['name']
+                
+                stock_data = self.fetcher.get_stock_data(stock_code, period=period, end_date=for_date)
+
+                if stock_data is None or stock_data.empty or len(stock_data) < period / 2:
+                    pbar.update(1)
+                    continue
+
+                stock_data_with_indicators = calculate_indicators(stock_data, self.config['indicators'])
+                
+                score, reasons = self._apply_strategy(stock_data_with_indicators)
+
+                if score > 0:
+                    results.append({
+                        'code': stock_code,
+                        'name': stock_name,
+                        'score': score,
+                        'reasons': reasons,
+                        'price': stock_data.iloc[-1]['close'],
+                        'market_cap': row.get('market_cap', 0)
+                    })
+                pbar.update(1)
+        return results
+
+    def _apply_strategy(self, data):
         """
-        为候选股票列表打分。
-        这是一个抽象方法，需要由子类根据具体策略实现。
+        应用策略逻辑进行评分。这是一个抽象方法，子类必须实现。
+        :param data: 包含指标的DataFrame
+        :return: (score, reasons) 元组
         """
-        raise NotImplementedError("子类必须实现 `_score_stocks` 方法")
+        raise NotImplementedError("子类必须实现 `_apply_strategy` 方法")
 
     def _filter_and_sort(self, scored_stocks):
-        """根据评分和配置对股票进行最终排序和筛选"""
-        # 按分数从高到低排序
+        """根据得分排序并选取前N名"""
         sorted_stocks = sorted(scored_stocks, key=lambda x: x['score'], reverse=True)
-        
-        # 根据配置中的 max_stocks 截取最终列表
-        max_stocks = self.config.get('filter', {}).get('max_stocks', 10)
-        return sorted_stocks[:max_stocks]
+        top_n = self.config.get('top_n', 10)
+        return sorted_stocks[:top_n]
 
-    def _save_results(self, stocks):
-        """将选股结果保存为JSON文件"""
-        filename = f"{self.results_dir}/{self.strategy_name}_selection_{self.today_str}.json"
+    def save_results(self, results, for_date=None):
+        """将选股结果保存到JSON文件"""
+        date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
+        filename = os.path.join(self.results_dir, f'{self.strategy_name}_selection_{date_str}.json')
         
-        result_data = {
-            'strategy_name': self.strategy_name,
-            'date': self.today_str,
-            'timestamp': datetime.now().isoformat(),
-            'config_used': self.config,
-            'summary': {
-                'total_recommended': len(stocks),
-                'avg_score': round(sum(s['score'] for s in stocks) / len(stocks), 1) if stocks else 0,
-            },
-            'stocks': stocks,
-        }
-        
-        try:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(result_data, f, ensure_ascii=False, indent=4)
-            print(f"\n💾 结果已保存至: {filename}")
-        except Exception as e:
-            print(f"❌ 保存结果文件失败: {e}")
+        for stock in results:
+            for key, value in stock.items():
+                if isinstance(value, (np.integer, np.int64)):
+                    stock[key] = int(value)
+                elif isinstance(value, (np.floating, np.float64)):
+                    stock[key] = float(value)
 
-    def _print_results(self, stocks):
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
+        print(f"\n选股结果已保存至: {filename}")
+
+    def print_results(self, results, for_date=None):
         """在控制台打印选股结果"""
-        if not stocks:
-            print("\nℹ️ 今日无任何股票推荐。")
+        date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
+        if not results:
+            print(f"\n在 {date_str} 未选出任何股票。")
             return
         
-        print(f"\n📊 [{self.strategy_name}] 策略选股结果 - {self.today_str}")
-        print("-" * 60)
-        
-        for i, stock in enumerate(stocks, 1):
-            medal = ""
-            if i == 1: medal = "🥇"
-            elif i == 2: medal = "🥈"
-            elif i == 3: medal = "🥉"
-            else: medal = f"#{i:<2}"
-
-            details = [
-                f"代码: {stock.get('code', 'N/A')}",
-                f"价格: ¥{stock.get('current_price', 0):.2f}",
-                f"市值: {stock.get('market_cap', 0) / 100000000:.1f}亿",
-            ]
-            
-            print(f"\n{medal} {stock.get('name', '未知股票')} - 综合评分: {stock.get('score', 0):.1f}/100")
-            print(f"   {' | '.join(details)}")
-            if stock.get('reasons'):
-                print(f"   推荐理由: {' + '.join(stock.get('reasons', []))}")
-
-        print("\n" + "=" * 60)
-        print("⚠️  风险提示: 本推荐仅为量化分析结果，不构成任何投资建议。")
-        print("   股市有风险，投资需谨慎，请结合基本面和市场情况做出决策。")
+        print(f"\n📊 [{self.strategy_name}] 策略选股结果 - {date_str}")
+        print("="*80)
+        print(f"{'代码':<10}{'名称':<10}{'得分':<8}{'价格':<10}{'市值(亿)':<12}{'推荐理由'}")
+        print("-"*80)
+        for stock in results:
+            market_cap_in_bil = stock.get('market_cap', 0) / 1e8
+            print(f"{stock['code']:<10}{stock['name']:<10}{stock['score']:<8}"
+                  f"{stock.get('price', 0):<10.2f}{market_cap_in_bil:<12.2f}{' | '.join(stock['reasons'])}")
+        print("="*80)
+        print("⚠️  风险提示: 本结果仅为量化分析，不构成投资建议。")
 
     def _rate_limit_delay(self):
         """简单的请求延迟，避免过于频繁地请求API"""

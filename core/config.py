@@ -50,7 +50,7 @@ class Config:
     # 策略1: 纯技术分析策略 (原基础版)
     TECHNICAL_STRATEGY_CONFIG = {
         'filter': {
-            'min_market_cap': 50 * 100000000,  # 50亿
+            'max_market_cap': 200 * 100000000,  # 市值上限200亿
             'max_recent_gain': 30,
             'min_score': 70,
             'max_stocks': 10,
@@ -69,7 +69,7 @@ class Config:
     # 策略2: 四维综合分析策略 (原增强版)
     COMPREHENSIVE_STRATEGY_CONFIG = {
         'filter': {
-            'min_market_cap': 80 * 100000000,  # 80亿
+            'max_market_cap': 200 * 100000000,  # 市值上限200亿
             'max_recent_gain': 25,
             'min_score': 75,
             'max_stocks': 8,

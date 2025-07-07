@@ -48,7 +48,7 @@ jobs:
 
       # 第五步：运行选股脚本 (使用功能更强的 comprehensive 策略)
       - name: Run stock selection script
-        run: python main.py run --strategy comprehensive
+        run: python main.py select --strategy comprehensive
 
       # 第六步：自动提交结果文件
       - name: Commit and push results

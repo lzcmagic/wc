@@ -15,14 +15,45 @@ class ComprehensiveStrategy(BaseSelector):
     - 实现多维度、更复杂的评分逻辑。
     """
     def __init__(self):
-        strategy_config = config.COMPREHENSIVE_STRATEGY_CONFIG
-        super().__init__("Comprehensive", strategy_config)
-        
-        # 初始化该策略所需的多个分析器
-        self.tech_indicators = TechnicalIndicators()
-        self.fundamental_analyzer = FundamentalAnalyzer()
-        self.sentiment_analyzer = MarketSentimentAnalyzer()
-        self.industry_analyzer = IndustryAnalyzer()
+        super().__init__('comprehensive')
+
+    def _apply_strategy(self, data):
+        """
+        应用四维共振综合策略为单只股票评分。
+        :param data: 包含指标的DataFrame
+        :return: (score, reasons) 元组
+        """
+        score = 0
+        reasons = []
+        latest = data.iloc[-1]
+
+        # 1. 趋势维度 (30分)
+        if latest['SMA_5'] > latest['SMA_10'] > latest['SMA_20'] > latest['SMA_60']:
+            score += 30
+            reasons.append("趋势多头")
+
+        # 2. 成交量维度 (30分)
+        if latest['VOL_5'] > latest['VOL_60']:
+            score += 15
+            reasons.append("近期放量")
+        if latest['volume'] > data['volume'].rolling(5).mean().iloc[-1] * 1.5:
+             score += 15
+             reasons.append("当日放量")
+
+        # 3. 动能维度 (20分)
+        if latest['MACD_12_26_9'] > latest['MACDs_12_26_9'] and latest['RSI_14'] > 50:
+            score += 20
+            reasons.append("动能向好(MACD>Signal, RSI>50)")
+
+        # 4. 波动维度 (20分)
+        if latest['BB_WIDTH'] > data['BB_WIDTH'].rolling(20).mean().iloc[-1]:
+            score += 10
+            reasons.append("波动放大")
+        if latest['ATR_14'] > data['ATR_14'].rolling(20).mean().iloc[-1]:
+            score += 10
+            reasons.append("振幅增加")
+            
+        return score, reasons
 
     def _get_candidate_stocks(self):
         """
@@ -38,9 +69,9 @@ class ComprehensiveStrategy(BaseSelector):
             print(f"✅ 获取到 {len(all_stocks)} 只A股。")
             
             filter_cfg = self.config.get('filter', {})
-            min_market_cap = filter_cfg.get('min_market_cap', 0)
+            max_market_cap = filter_cfg.get('max_market_cap', 200 * 100000000) # 默认为200亿
             
-            candidates = all_stocks[all_stocks['market_cap'] >= min_market_cap].copy()
+            candidates = all_stocks[all_stocks['market_cap'] <= max_market_cap].copy()
             candidates = candidates[~candidates['name'].str.contains('ST|退|N')]
             
             print(f"初筛后剩余 {len(candidates)} 只股票，将进入多维度评分环节...")
