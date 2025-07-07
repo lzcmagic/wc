@@ -49,62 +49,36 @@ class Config:
     # --- 策略默认配置 ---
     # 策略1: 纯技术分析策略 (原基础版)
     TECHNICAL_STRATEGY_CONFIG = {
-        'filter': {
-            'max_market_cap': 200 * 100000000,  # 市值上限200亿
-            'max_recent_gain': 30,
-            'min_score': 70,
-            'max_stocks': 10,
-            'analysis_period': 60,
-        },
-        'scorer_weights': {
-            'macd': 0.25,
-            'rsi': 0.20,
-            'kdj': 0.20,
-            'bollinger': 0.15,
-            'volume': 0.10,
-            'ma': 0.10,
-        }
+        'period': 60,
+        'top_n': 10,
+        'max_market_cap': 200 * 100000000,
+        'indicators': [
+            {"kind": "sma", "length": 5},
+            {"kind": "sma", "length": 10},
+            {"kind": "sma", "length": 20},
+            {"kind": "macd"},
+            {"kind": "rsi"},
+            {"kind": "kdj"}
+        ]
     }
 
     # 策略2: 四维综合分析策略 (原增强版)
     COMPREHENSIVE_STRATEGY_CONFIG = {
-        'filter': {
-            'max_market_cap': 200 * 100000000,  # 市值上限200亿
-            'max_recent_gain': 25,
-            'min_score': 75,
-            'max_stocks': 8,
-            'analysis_period': 90,
-            # 基本面筛选
-            'max_pe': 30,
-            'min_roe': 5,
-            'max_pb': 5,
-        },
-        'scorer_weights': {
-            # 技术面 (60%)
-            'technical_total': 0.60,
-            'macd': 0.10,
-            'rsi': 0.08,
-            'kdj': 0.08,
-            'bollinger': 0.06,
-            'obv': 0.12,
-            'ma_trend': 0.06,
-            'adx': 0.10,
-            # 基本面 (25%)
-            'fundamental_total': 0.25,
-            # 市场情绪 (10%)
-            'sentiment_total': 0.10,
-            # 行业因子 (5%)
-            'industry_total': 0.05,
-        },
-        'industry_scores': {
-            '新能源': 90, '半导体': 88, '人工智能': 90,
-            '生物医药': 85, '创新药': 88, '医疗器械': 82,
-            '白酒': 78, '食品饮料': 72,
-            '家电': 65, '汽车': 68,
-            '化工': 58, '钢铁': 52, '有色': 55,
-            '银行': 48, '保险': 45, '证券': 52,
-            '地产': 35, '建筑': 42,
-        }
+        'period': 90,
+        'top_n': 8,
+        'max_market_cap': 200 * 100000000,
+        'indicators': [
+            {"kind": "sma", "length": 5},
+            {"kind": "sma", "length": 10},
+            {"kind": "sma", "length": 20},
+            {"kind": "sma", "length": 60},
+            {"kind": "ema", "close": "volume", "length": 5, "col_names": ("VOL_5",)},
+            {"kind": "ema", "close": "volume", "length": 60, "col_names": ("VOL_60",)},
+            {"kind": "macd"},
+            {"kind": "rsi"},
+            {"kind": "bbands"},
+            {"kind": "atr"}
+        ]
     }
 
     def __init__(self):

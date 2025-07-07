@@ -45,24 +45,22 @@ class Portfolio:
         self.holdings = {}
 
         # 2. 将资金平均买入新的目标股票
-        if not target_holdings:
-            return # 如果没有新的目标，则全仓持有现金
-
-        investment_per_stock = self.cash / len(target_holdings)
+        if target_holdings: # 只有在有新目标时才执行买入
+            investment_per_stock = self.cash / len(target_holdings)
+            
+            for stock in target_holdings:
+                code = stock['code']
+                price = current_prices.get(code)
+                if price is not None and price > 0:
+                    shares_to_buy = investment_per_stock / price
+                    trade_value = shares_to_buy * price
+                    commission = trade_value * self.commission_rate
+                    
+                    if self.cash >= trade_value + commission:
+                        self.cash -= (trade_value + commission)
+                        self.holdings[code] = {'shares': shares_to_buy, 'price': price}
         
-        for stock in target_holdings:
-            code = stock['code']
-            price = current_prices.get(code)
-            if price is not None and price > 0:
-                shares_to_buy = investment_per_stock / price
-                trade_value = shares_to_buy * price
-                commission = trade_value * self.commission_rate
-                
-                if self.cash >= trade_value + commission:
-                    self.cash -= (trade_value + commission)
-                    self.holdings[code] = {'shares': shares_to_buy, 'price': price}
-        
-        # 记录当日资产
+        # 3. 无论交易与否，始终记录当日资产历史
         self.record_history(date, current_prices)
 
     def record_history(self, date, current_prices):
@@ -92,19 +90,24 @@ class BacktestEngine:
         print("🚀 回测开始...")
         print(f"策略: {self.strategy.strategy_name} | 时间: {self.start_date.date()} to {self.end_date.date()} | 初始资金: ¥{self.initial_capital:,.2f}")
         
+        # 1. 在回测开始前，一次性获取所有股票的列表和市值信息
+        all_stocks = self.fetcher.get_all_stocks_with_market_cap()
+        if all_stocks.empty:
+            print("❌ 无法获取股票列表，回测无法开始。")
+            return
+
         all_trade_days = self.fetcher.get_trade_days(self.start_date, self.end_date)
         
         for current_date in all_trade_days:
             print(f"  -> 模拟交易日: {current_date.strftime('%Y-%m-%d')}")
             
-            # 1. 调用策略，获取当日的持仓建议
-            # (需要修改策略类以支持历史日期)
-            target_stocks = self.strategy.run_selection(for_date=current_date)
+            # 2. 调用策略，传入全量股票池，获取当日的持仓建议
+            target_stocks = self.strategy.run_selection(all_stocks=all_stocks, for_date=current_date)
             
-            # 2. 获取当日所有A股的价格，用于计算市值和执行交易
+            # 3. 获取当日所有A股的价格，用于计算市值和执行交易
             current_prices = self.fetcher.get_prices_for_date(target_stocks, current_date)
             
-            # 3. 执行调仓
+            # 4. 执行调仓
             self.portfolio.rebalance(current_date, target_stocks, current_prices)
             
             # 打印当日资产

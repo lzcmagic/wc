@@ -19,22 +19,32 @@ class BaseSelector:
     """
     def __init__(self, strategy_name):
         self.strategy_name = strategy_name
-        self.config = config.get_strategy_config(strategy_name)
+        # 根据策略名称动态获取配置
+        config_attr_name = f"{strategy_name.upper()}_STRATEGY_CONFIG"
+        self.config = getattr(config, config_attr_name, {})
+        if not self.config:
+            raise ValueError(f"未在 config.py 中找到名为 {config_attr_name} 的配置")
+
         self.fetcher = StockDataFetcher()
         self.results_dir = 'results'
         if not os.path.exists(self.results_dir):
             os.makedirs(self.results_dir)
 
-    def run_selection(self, for_date=None):
+    def run_selection(self, all_stocks=None, for_date=None):
         """
         运行选股过程。
+        :param all_stocks: 预先获取的全量股票池 (DataFrame)
         :param for_date: 如果提供，则为该历史日期运行选择，否则为今天。
         """
         run_date = for_date or datetime.now()
         print(f"🚀 开始为日期 {run_date.strftime('%Y-%m-%d')} 运行 {self.strategy_name} 策略...")
 
+        # 如果没有预先提供股票池（例如，非回测模式），则实时获取
+        if all_stocks is None:
+            all_stocks = self.fetcher.get_all_stocks_with_market_cap()
+
         # 1. 初步筛选
-        candidate_stocks = self._get_candidate_stocks(for_date=for_date)
+        candidate_stocks = self._filter_by_market_cap(all_stocks)
         if candidate_stocks.empty:
             print("❌ 在初筛阶段未能找到任何候选股票。")
             return []
@@ -52,13 +62,6 @@ class BaseSelector:
         self.save_results(final_selection, for_date)
         self.print_results(final_selection, for_date)
         return final_selection
-
-    def _get_candidate_stocks(self, for_date=None):
-        """获取所有A股，并根据市值进行初步筛选"""
-        all_stocks = self.fetcher.get_stock_list(for_date=for_date)
-        if all_stocks.empty:
-            return pd.DataFrame()
-        return self._filter_by_market_cap(all_stocks)
 
     def _filter_by_market_cap(self, df):
         """根据配置中的市值要求过滤股票"""
@@ -120,12 +123,21 @@ class BaseSelector:
         date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
         filename = os.path.join(self.results_dir, f'{self.strategy_name}_selection_{date_str}.json')
         
+        # 为JSON序列化清理数据
         for stock in results:
             for key, value in stock.items():
+                # 处理numpy数字类型
                 if isinstance(value, (np.integer, np.int64)):
                     stock[key] = int(value)
                 elif isinstance(value, (np.floating, np.float64)):
-                    stock[key] = float(value)
+                    # 检查是否为 NaN
+                    if np.isnan(value):
+                        stock[key] = None  # 将NaN替换为None
+                    else:
+                        stock[key] = float(value)
+                # 检查其他可能的NaN值（例如在reasons列表中）
+                elif isinstance(value, list):
+                    stock[key] = [None if isinstance(v, float) and np.isnan(v) else v for v in value]
 
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=4)

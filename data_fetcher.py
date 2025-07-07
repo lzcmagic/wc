@@ -5,6 +5,7 @@ A股数据获取模块
 
 import akshare as ak
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 import time
 from functools import lru_cache
@@ -29,31 +30,26 @@ class StockDataFetcher:
             print(f"❌ 获取交易日历失败: {e}")
             return pd.date_range(start=start_date, end=end_date, freq='B').tolist()
 
-    @lru_cache(maxsize=128)
-    def get_stock_list(self, for_date=None):
+    @lru_cache(maxsize=1)
+    def get_all_stocks_with_market_cap(self):
         """
-        获取A股所有股票列表及其市值信息。
-        如果指定 for_date，则获取该日期的市值快照。
+        获取当前所有A股的列表及其市值信息。此函数应在回测开始时调用一次。
         """
-        print(f"   - 正在获取A股列表 (日期: {for_date or '最新'})...")
+        print(f"   - 正在获取全量A股列表及市值信息...")
         try:
-            # akshare.stock_zh_a_spot_em() 可以获取最新的数据
-            date_str = for_date.strftime('%Y%m%d') if for_date else datetime.now().strftime('%Y%m%d')
-            # 使用一个能获取指定日期市值的接口
-            df = ak.stock_zh_a_hist(period="daily", start_date=date_str, end_date=date_str, adjust="qfq")
+            df = ak.stock_zh_a_spot_em()
             if df.empty: return pd.DataFrame()
 
-            # 数据清洗和重命名
-            df = df[['代码', '名称', '最新价', '总市值', '流通市值']].copy()
-            df.columns = ['code', 'name', 'price', 'total_market_cap', 'market_cap']
+            df = df[['代码', '名称', '总市值', '流通市值']].copy()
+            df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
             
-            # 清理代码，确保格式正确
             df['code'] = df['code'].astype(str)
+            df = df.dropna(subset=['market_cap'])
             return df
         except Exception as e:
-            print(f"❌ 获取A股列表失败: {e}")
+            print(f"❌ 获取全量A股列表失败: {e}")
             return pd.DataFrame()
-    
+
     @lru_cache(maxsize=512)
     def get_stock_data(self, stock_code, period=120, end_date=None):
         """
@@ -185,24 +181,16 @@ class StockDataFetcher:
         if not stocks:
             return {}
         
-        date_str = for_date.strftime('%Y%m%d')
-        prices = {}
-        
-        # 优化: 一次性获取当日所有股票行情
         try:
+            date_str = for_date.strftime('%Y%m%d')
             all_prices_df = ak.stock_zh_a_hist(period="daily", start_date=date_str, end_date=date_str, adjust="qfq")
             if all_prices_df.empty:
                 return {}
             
             stock_codes = [s['code'] for s in stocks]
-            
-            # 从当日行情中筛选出我们需要的股票价格
             target_prices_df = all_prices_df[all_prices_df['代码'].isin(stock_codes)]
             
-            for _, row in target_prices_df.iterrows():
-                prices[row['代码']] = row['收盘']
-                
-            return prices
+            return dict(zip(target_prices_df['代码'], target_prices_df['收盘']))
             
         except Exception as e:
             print(f"❌ 获取 {date_str} 的价格失败: {e}")

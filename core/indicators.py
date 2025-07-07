@@ -320,3 +320,27 @@ class IndustryAnalyzer:
                 
         except Exception:
             return 50, "未知行业"
+
+def calculate_indicators(df, indicator_configs):
+    """
+    根据配置为DataFrame计算所有需要的技术指标。
+    
+    :param df: 包含OHLCV数据的Pandas DataFrame。
+    :param indicator_configs: 策略配置中定义的指标列表。
+    :return: 带有技术指标新列的DataFrame。
+    """
+
+    if df is None or df.empty:
+        return df
+
+    # 使用pandas-ta的strategy功能来批量计算
+    strategy = ta.Strategy(
+        name="Dynamic Strategy",
+        description="Calculates indicators based on config",
+        ta=indicator_configs
+    )
+    
+    # 将指标附加到DataFrame上
+    df.ta.strategy(strategy)
+    
+    return df
