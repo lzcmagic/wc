@@ -14,13 +14,17 @@ class StockDataFetcher:
         self.retry_delay = 1
     
     def get_stock_list(self):
-        """获取所有A股列表"""
+        """获取A股列表（使用新浪接口，兼容受限网络）"""
         try:
-            # 获取沪深A股列表
-            stock_list_sh = ak.stock_info_a_code_name()
-            return stock_list_sh
+            # 新浪财经 A 股行情（含实时数据及代码、名称）
+            spot_df = ak.stock_zh_a_spot()
+
+            # 保留代码与名称列，并重命名为统一字段
+            stock_list = spot_df.rename(columns={'代码': 'code', '名称': 'name'})[['code', 'name']]
+            return stock_list.reset_index(drop=True)
         except Exception as e:
             print(f"获取股票列表失败: {e}")
+            # 返回空 DataFrame 以便调用方处理
             return pd.DataFrame()
     
     def get_stock_data(self, stock_code, period=60):
@@ -47,8 +51,27 @@ class StockDataFetcher:
                 )
                 
                 if not stock_data.empty:
-                    # 重命名列名
-                    stock_data.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'turnover', 'amplitude', 'change_pct', 'change_amount', 'turnover_rate']
+                    # AkShare 近期已调整返回字段，现统一使用映射方式重命名，避免列数不匹配
+                    rename_map = {
+                        '日期': 'date',
+                        '开盘': 'open',
+                        '收盘': 'close',
+                        '最高': 'high',
+                        '最低': 'low',
+                        '成交量': 'volume',
+                        '成交额': 'turnover',
+                        '振幅': 'amplitude',
+                        '涨跌幅': 'change_pct',
+                        '涨跌额': 'change_amount',
+                        '换手率': 'turnover_rate'
+                    }
+
+                    stock_data = stock_data.rename(columns=rename_map)
+
+                    # 去除不需要的列，如 '股票代码'
+                    if '股票代码' in stock_data.columns:
+                        stock_data = stock_data.drop(columns=['股票代码'])
+
                     stock_data['date'] = pd.to_datetime(stock_data['date'])
                     stock_data = stock_data.sort_values('date').reset_index(drop=True)
                     return stock_data

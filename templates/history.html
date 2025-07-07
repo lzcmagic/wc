@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史记录 - {{ app_name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .history-table th, .history-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .history-table th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .history-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        .btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px 5px;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 历史记录</h1>
+        </div>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            <a href="/" class="btn">← 返回主页</a>
+        </div>
+        
+        {% if history %}
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>日期</th>
+                        <th>推荐股票数</th>
+                        <th>平均评分</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in history %}
+                    <tr>
+                        <td>{{ item.date }}</td>
+                        <td>{{ item.count }} 只</td>
+                        <td>{{ item.avg_score }}/100</td>
+                        <td>
+                            <a href="/api/results/{{ item.date }}" target="_blank" class="btn">查看详情</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">
+                <h3>📭 暂无历史记录</h3>
+                <p>还没有历史选股记录，请先执行选股分析。</p>
+                <a href="/" class="btn">返回主页</a>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>
