@@ -138,3 +138,6 @@ USER_CONFIG = {
 2. 运行调试脚本获取更多信息
 3. 检查QQ邮箱官方文档
 4. 联系技术支持 
+
+from core.config import get_strategy_config
+print(get_strategy_config('comprehensive')) 

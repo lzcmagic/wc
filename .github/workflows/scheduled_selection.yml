@@ -52,17 +52,44 @@ jobs:
 
       # 第四步：根据矩阵中的策略名称运行选股脚本
       - name: Run stock selection for ${{ matrix.strategy }}
-        run: python main.py select --strategy ${{ matrix.strategy }}
+        timeout-minutes: 30  # 设置30分钟超时
+        run: |
+          # 调试：检查策略配置
+          python -c "from core.config import get_strategy_config; config = get_strategy_config('${{ matrix.strategy }}'); print('Config keys:', list(config.keys())); print('analysis_period:', config.get('analysis_period', 'NOT_FOUND'))"
+          
+          # 检查网络连接
+          echo "🔍 检查网络连接..."
+          python -c "import akshare as ak; print('✅ akshare导入成功')"
+          
+          # 测试数据获取
+          echo "🔍 测试数据获取..."
+          python -c "import akshare as ak; df = ak.stock_zh_a_spot_em(); print(f'✅ 成功获取 {len(df)} 只股票数据')"
+          
+          # 运行选股
+          echo "🚀 开始运行选股策略..."
+          python main.py select --strategy ${{ matrix.strategy }}
+          
+          # 检查结果文件
+          echo "📊 检查结果文件..."
+          ls -la results/ || echo "⚠️ results目录不存在"
 
       # 第五步：发送邮件通知
       - name: Send email notification for ${{ matrix.strategy }}
         if: success() && matrix.strategy == 'comprehensive' # 只对综合策略发送邮件，避免重复
+        timeout-minutes: 5  # 邮件发送超时5分钟
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: |
-          # 创建临时的邮件配置文件
+          # 检查邮件配置
+          echo "📧 检查邮件配置..."
+          if [ -z "$EMAIL_USERNAME" ] || [ -z "$EMAIL_PASSWORD" ] || [ -z "$EMAIL_TO" ]; then
+            echo "❌ 邮件配置不完整，跳过邮件发送"
+            exit 0
+          fi
+          
+          # 创建临时的配置文件，包含邮件和策略配置
           cat > user_config.py << EOF
           USER_CONFIG = {
               'EMAIL_CONFIG': {
@@ -74,11 +101,19 @@ jobs:
                   'to_email': '${{ secrets.EMAIL_TO }}',
                   'use_tls': False,  # SSL模式下不使用TLS
                   'subject_template': '📈 每日选股推荐 - {date}'
+              },
+              'COMPREHENSIVE_STRATEGY_CONFIG': {
+                  'analysis_period': 90,
+                  'min_market_cap': 8000000000,
+                  'max_recent_gain': 25,
+                  'min_score': 75,
+                  'max_stocks': 8
               }
           }
           EOF
           
           # 发送邮件通知
+          echo "📧 开始发送邮件通知..."
           python send_email_notification.py ${{ matrix.strategy }}
 
   # 单独创建一个job来处理提交，确保所有策略都运行完毕后再提交

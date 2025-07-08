@@ -24,12 +24,13 @@ def retry(max_retries=3, delay=3, exceptions=(Exception,)):
                     # 如果返回空数据，也重试
                     if attempt < max_retries:
                         print(f"⚠️ 第{attempt}次尝试返回空数据，重试中...")
-                        time.sleep(delay)
+                        time.sleep(delay * attempt)  # 递增延迟
                 except exceptions as e:
                     print(f"⚠️ 第{attempt}次尝试失败: {e}")
                     if attempt < max_retries:
-                        print(f"   等待 {delay} 秒后重试...")
-                        time.sleep(delay)
+                        delay_time = delay * attempt  # 递增延迟
+                        print(f"   等待 {delay_time} 秒后重试...")
+                        time.sleep(delay_time)
                     else:
                         print(f"❌ {func.__name__} 多次重试后依然失败，返回空结果。")
             # 所有重试都失败后，返回空结果
