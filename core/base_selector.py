@@ -69,9 +69,25 @@ class BaseSelector:
 
     def _filter_by_market_cap(self, df):
         """根据配置中的市值要求过滤股票"""
+        min_cap = self.config.get('min_market_cap')
         max_cap = self.config.get('max_market_cap')
-        if max_cap and 'market_cap' in df.columns:
-            return df[df['market_cap'] <= max_cap].copy()
+        
+        # 使用 'market_cap' (流通市值) 进行筛选
+        # 注意: data_fetcher 中的预筛选使用的是 'total_market_cap' (总市值)
+        if 'market_cap' not in df.columns:
+            return df
+            
+        original_count = len(df)
+        
+        if min_cap is not None:
+            df = df[df['market_cap'] >= min_cap]
+        
+        if max_cap is not None:
+            df = df[df['market_cap'] <= max_cap]
+            
+        if len(df) < original_count:
+            print(f"   - 应用策略专属市值过滤后剩余: {len(df)} 只")
+            
         return df
 
     def _score_single_stock(self, stock_info, for_date=None):
