@@ -1,6 +1,14 @@
 name: 每日定时选股
 
 on:
+  # 代码推送时自动触发（仅限主分支）
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - 'results/**'  # 忽略结果文件的推送，避免循环触发
+      - 'README.md'
+      - 'docs/**'
+  
   # 允许在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
   
@@ -150,8 +158,8 @@ jobs:
   commit-results:
     needs: run-scheduled-selection # 依赖于选股任务
     runs-on: ubuntu-latest
-    # 允许在更多分支上执行，不仅限于main分支
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # 在定时任务、手动触发或push事件时执行
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
 
     steps:
       - name: Checkout repository
