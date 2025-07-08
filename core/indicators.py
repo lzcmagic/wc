@@ -199,17 +199,17 @@ class FundamentalAnalyzer:
                     if 'PE' in item or '市盈率' in item:
                         try:
                             result['pe_ratio'] = float(value)
-                        except:
+                        except (ValueError, TypeError):
                             pass
                     elif 'PB' in item or '市净率' in item:
                         try:
                             result['pb_ratio'] = float(value)
-                        except:
+                        except (ValueError, TypeError):
                             pass
                     elif 'ROE' in item or '净资产收益率' in item:
                         try:
                             result['roe'] = float(value.replace('%', ''))
-                        except:
+                        except (ValueError, TypeError):
                             pass
             
             self.cache[stock_code] = result
@@ -318,7 +318,8 @@ class IndustryAnalyzer:
             else:
                 return 50, f"{industry}(一般)"
                 
-        except Exception:
+        except Exception as e:
+            print(f"获取行业信息失败: {e}")
             return 50, "未知行业"
 
 def calculate_indicators(df, indicator_configs):

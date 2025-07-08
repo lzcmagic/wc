@@ -1,8 +1,9 @@
+#!/usr/bin/env python3
 """
-个人选股系统 Web 界面
-提供简单的网页查看选股结果
+Web界面应用
+提供选股结果的Web展示界面
 """
-import os
+
 try:
     from flask import Flask, render_template, jsonify, request
 except ImportError:
@@ -10,6 +11,7 @@ except ImportError:
     exit(1)
 
 import json
+import os
 from datetime import datetime, timedelta
 
 # 导入新的策略化结构
@@ -135,8 +137,8 @@ def create_templates_if_not_exist():
                             {% endfor %}
                         </ul>
                     </div>
-        </div>
-        </div>
+                </div>
+            </div>
         </div>
         
         {% if results and results.stocks %}
@@ -180,26 +182,26 @@ def create_templates_if_not_exist():
     <script>
         function runSelection() {
             alert('将在后台执行 [{{ current_strategy }}] 策略，请稍后刷新页面查看结果。');
-                fetch('/api/run_selection', {
-                    method: 'POST',
+            fetch('/api/run_selection', {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ strategy: '{{ current_strategy }}' })
-                })
-                .then(response => response.json())
-                .then(data => {
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (!data.success) {
-                        alert('执行失败: ' + data.error);
-                    }
-                });
+                    alert('执行失败: ' + data.error);
+                }
+            });
         }
     </script>
 </body>
 </html>
 """
         with open(dashboard_path, 'w', encoding='utf-8') as f:
-        f.write(dashboard_template)
+            f.write(dashboard_template)
         print(f"✅ 创建了新的 dashboard.html 模板。")
 
 if __name__ == '__main__':
     create_templates_if_not_exist()
-    app.run(debug=config.DEBUG, port=5000)
+    app.run(debug=config.DEBUG, port=5000) 

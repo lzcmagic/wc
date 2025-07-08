@@ -72,7 +72,8 @@ class StockDataFetcher:
         print(f"   - 正在获取全量A股列表及市值信息...")
         try:
             df = ak.stock_zh_a_spot_em()
-            if df.empty: return pd.DataFrame()
+            if df.empty: 
+                return pd.DataFrame()
 
             df = df[['代码', '名称', '总市值', '流通市值']].copy()
             df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
@@ -101,19 +102,19 @@ class StockDataFetcher:
 
         try:
             df = ak.stock_zh_a_hist(
-                    symbol=stock_code,
-                    period="daily",
+                symbol=stock_code,
+                period="daily",
                 start_date=start_date.strftime('%Y%m%d'),
                 end_date=end_date.strftime('%Y%m%d'),
                 adjust="qfq"  # 前复权
             )
-            # ... 此处省略数据清洗和重命名 ...
+            # 数据清洗和重命名
             df.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'turnover', 'amplitude', 'change_pct', 'change_amount', 'turnover_rate']
-            df['date'] = pd.to_datetime(df['日期'])
+            df['date'] = pd.to_datetime(df['date'])
             return df
-            except Exception as e:
+        except Exception as e:
             print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
-        return pd.DataFrame()
+            return pd.DataFrame()
     
     @retry(max_retries=3, delay=5)
     def get_stock_info(self, stock_code):
