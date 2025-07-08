@@ -9,7 +9,7 @@ import sys
 import json
 from datetime import datetime
 from core.email_sender import send_notification_email
-from core.config import config
+from core.env_config import env_config
 
 def main():
     """主函数"""
@@ -34,13 +34,13 @@ def main():
     print(f"   结果文件: {results_file}")
     
     # 检查邮件配置
-    email_config = config.EMAIL_CONFIG
+    email_config = env_config.get_email_config()
     if not email_config.get('enabled', False):
         print("❌ 邮件通知已禁用，请在配置中启用")
         sys.exit(1)
     
-    if not email_config.get('username') or not email_config.get('password'):
-        print("❌ 邮件配置不完整，请检查 username 和 password")
+    if not env_config.validate_email_config():
+        print("❌ 邮件配置不完整，请检查环境变量或 .env 文件")
         sys.exit(1)
     
     # 发送邮件

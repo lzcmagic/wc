@@ -1,10 +1,14 @@
 """
 个人选股系统配置文件
-包含系统配置、选股参数、通知设置等
+统一管理应用配置，使用新的环境配置和策略配置系统
 """
 
 import os
 from datetime import time
+
+# 导入新的配置模块
+from core.env_config import env_config
+from core.strategy_config import strategy_config
 
 class Config:
     """统一配置管理"""
@@ -25,110 +29,28 @@ class Config:
         'rate_limit_per_minute': 60,
     }
 
-    # --- 默认邮件通知配置 ---
-    # 用户可以在 user_config.py 中覆盖
-    EMAIL_CONFIG = {
-        'enabled': False,
-        'smtp_server': 'smtp.gmail.com',
-        'smtp_port': 587,
-        'username': '',
-        'password': '',
-        'to_email': '',
-        'use_tls': True,
-        'subject_template': '📈 每日选股推荐 - {date}',
-    }
+    # --- 邮件配置 (从环境配置获取) ---
+    @property
+    def EMAIL_CONFIG(self):
+        """动态获取邮件配置"""
+        return env_config.get_email_config()
     
-    # --- 默认定时任务配置 ---
-    SCHEDULE_CONFIG = {
-        'enabled': True,
-        'run_time': time(9, 30),
-        'weekdays_only': True,
-        'timezone': 'Asia/Shanghai'
-    }
+    # --- 定时任务配置 (从策略配置获取) ---
+    @property
+    def SCHEDULE_CONFIG(self):
+        """动态获取定时任务配置"""
+        return strategy_config.SCHEDULE_CONFIG
     
-    # --- 策略默认配置 ---
-    # 策略1: 纯技术分析策略 (原基础版)
-    TECHNICAL_STRATEGY_CONFIG = {
-        'strategy_name': 'technical',
-        'display_name': '技术分析策略',
-        
-        # 基础运行参数
-        'period': 60,
-        'analysis_period': 60,              # 添加 analysis_period
-        'top_n': 10,
-        'max_stocks': 10,                   # 添加 max_stocks
-        
-        # 基础筛选条件
-        'min_market_cap': 5000000000,       # 添加 min_market_cap (50亿)
-        'max_market_cap': 200 * 100000000,  # 保持原有 max_market_cap
-        'max_recent_gain': 30,              # 添加 max_recent_gain
-        'min_score': 60,                    # 添加 min_score
-        
-        # 技术指标配置
-        'indicators': [
-            {"kind": "sma", "length": 5},
-            {"kind": "sma", "length": 10},
-            {"kind": "sma", "length": 20},
-            {"kind": "macd"},
-            {"kind": "rsi"},
-            {"kind": "kdj"}
-        ],
-        
-        # API调用控制
-        'api_call_delay': 0.1,
-        'sample_size': 100,
-        'max_filtered_stocks': 50,
-        'min_data_days': 30,
-        'recent_gain_days': 30
-    }
+    # --- 策略配置 (从策略配置模块获取) ---
+    @property
+    def TECHNICAL_STRATEGY_CONFIG(self):
+        """获取技术分析策略配置"""
+        return strategy_config.get_strategy_config('technical')
     
-    # 策略2: 四维综合分析策略 (原增强版)
-    COMPREHENSIVE_STRATEGY_CONFIG = {
-        'strategy_name': 'comprehensive',
-        'display_name': '四维综合分析策略',
-        
-        # 基础运行参数
-        'analysis_period': 90,
-        'max_stocks': 8,
-
-        # 基础筛选条件
-        'min_market_cap': 8000000000,    # 80亿市值
-        'max_recent_gain': 25,           # 近期最大涨幅25%
-        'min_score': 75,                 # 最低总评分75
-
-        # 1. 技术面分析配置
-        'technical_indicators': [
-            {"kind": "sma", "length": 5},
-            {"kind": "sma", "length": 10},
-            {"kind": "sma", "length": 20},
-            {"kind": "adx"},
-            {"kind": "macd", "fast": 9, "slow": 19, "signal": 6}, # 使用优化参数
-            {"kind": "rsi"},
-            {"kind": "kdj"}
-        ],
-        
-        # 2. 基本面筛选配置 (新增)
-        'fundamental_filters': {
-            'max_pe_ttm': 30,
-            'min_roe': 5,
-            'max_pb': 5,
-            'max_debt_ratio': 0.6 # 资产负债率
-        },
-
-        # 3. 市场情绪分析配置 (占位)
-        'sentiment_config': {},
-
-        # 4. 行业分析配置 (占位)
-        'industry_config': {},
-
-        # 四维权重配置
-        'weights': {
-            'technical': 0.60,
-            'fundamental': 0.25,
-            'sentiment': 0.10,
-            'industry': 0.05
-        }
-    }
+    @property
+    def COMPREHENSIVE_STRATEGY_CONFIG(self):
+        """获取综合分析策略配置"""
+        return strategy_config.get_strategy_config('comprehensive')
 
     @staticmethod
     def create_directories():
@@ -145,39 +67,26 @@ class Config:
         print("配置验证完成")
 
     def __init__(self):
-        self.load_user_config()
+        """初始化配置系统"""
+        # 打印配置状态
+        self.print_config_status()
 
-    def load_user_config(self):
-        """
-        动态加载用户配置文件 (user_config.py)，并用其覆盖默认配置。
-        这样用户就可以在不修改项目源码的情况下自定义配置。
-        """
-        try:
-            from user_config import USER_CONFIG
-            print("✅ 成功加载 `user_config.py` 用户配置文件。")
-
-            # 递归地更新配置字典
-            def update_dict(d, u):
-                for k, v in u.items():
-                    if isinstance(v, dict):
-                        d[k] = update_dict(d.get(k, {}), v)
-                    else:
-                        d[k] = v
-                return d
-
-            # 遍历用户配置，更新到Config类属性中
-            for key, value in USER_CONFIG.items():
-                if hasattr(self, key):
-                    current_value = getattr(self, key)
-                    if isinstance(current_value, dict) and isinstance(value, dict):
-                        update_dict(current_value, value)
-                    else:
-                        setattr(self, key, value)
-
-        except ImportError:
-            print("ℹ️ 未找到 `user_config.py`，将使用系统默认配置。")
-        except Exception as e:
-            print(f"❌ 加载用户配置 `user_config.py` 时出错: {e}")
+    def print_config_status(self):
+        """打印配置状态"""
+        print("🔧 配置系统状态:")
+        print(f"   应用名称: {self.APP_NAME}")
+        print(f"   版本: {self.VERSION}")
+        
+        # 打印环境配置状态
+        env_config.print_config_status()
+        
+        # 验证策略配置
+        print("\n📋 策略配置状态:")
+        for strategy_name in ['technical', 'comprehensive']:
+            if strategy_config.validate_strategy_config(strategy_name):
+                print(f"   ✅ {strategy_name} 策略配置完整")
+            else:
+                print(f"   ❌ {strategy_name} 策略配置有问题")
         
 # 全局配置实例
 config = Config()
@@ -244,12 +153,7 @@ def get_strategy_config(strategy_name: str):
     """
     根据策略名称获取对应的配置字典
     """
-    if strategy_name == 'technical':
-        return config.TECHNICAL_STRATEGY_CONFIG
-    elif strategy_name == 'comprehensive':
-        return config.COMPREHENSIVE_STRATEGY_CONFIG
-    else:
-        raise ValueError(f"未知的策略名称: {strategy_name}")
+    return strategy_config.get_strategy_config(strategy_name)
 
 if __name__ == "__main__":
     init_config() 

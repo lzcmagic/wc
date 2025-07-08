@@ -51,7 +51,8 @@ def index():
 @app.route('/api/run_selection', methods=['POST'])
 def api_run_selection():
     """API接口 - 手动触发指定策略的选股"""
-    data = request.get_json()
+    # 使用 silent=True 避免因无效 JSON 直接抛出 400 错误
+    data = request.get_json(silent=True) or {}
     strategy_name = data.get('strategy')
 
     if not strategy_name or strategy_name not in STRATEGY_MAP:

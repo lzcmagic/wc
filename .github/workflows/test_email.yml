@@ -21,38 +21,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Debug QQ Email Configuration
+      - name: Test new config system
         env:
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED || 'true' }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER || 'smtp.qq.com' }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT || '465' }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS || 'false' }}
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_SUBJECT_TEMPLATE: ${{ secrets.EMAIL_SUBJECT_TEMPLATE || '📈 GitHub Actions测试 - {date}' }}
         run: |
-          echo "🔍 开始详细调试QQ邮箱配置..."
+          echo "🔍 测试新配置系统..."
           echo "环境变量检查:"
           echo "EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME != '' && '已设置' || '未设置' }}"
           echo "EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD != '' && '已设置' || '未设置' }}"
           echo "EMAIL_TO: ${{ secrets.EMAIL_TO != '' && '已设置' || '未设置' }}"
           
-          # 运行调试脚本
-          python debug_qq_email.py
+          # 测试新配置系统
+          python -c "
+          from core.env_config import env_config
+          env_config.print_config_status()
+          
+          if env_config.validate_email_config():
+              print('✅ 配置验证通过')
+          else:
+              print('❌ 配置验证失败')
+              exit(1)
+          "
           
           # 如果调试成功，再测试完整功能
           if [ $? -eq 0 ]; then
             echo "✅ 调试成功，测试完整邮件功能..."
-            
-            # 创建测试配置
-            cat > test_config.py << EOF
-            TEST_CONFIG = {
-                'enabled': True,
-                'smtp_server': 'smtp.qq.com',
-                'smtp_port': 465,  # 使用SSL端口465
-                'username': '${{ secrets.EMAIL_USERNAME }}',
-                'password': '${{ secrets.EMAIL_PASSWORD }}',
-                'to_email': '${{ secrets.EMAIL_TO }}',
-                'use_tls': False,  # SSL模式下不使用TLS
-                'subject_template': '📈 GitHub Actions测试 - {date}'
-            }
-            EOF
             
             # 创建测试结果文件
             mkdir -p results
@@ -72,13 +72,14 @@ jobs:
             # 测试邮件发送
             python -c "
             from core.email_sender import send_notification_email
-            from test_config import TEST_CONFIG
+            from core.env_config import env_config
             import os
             
+            email_config = env_config.get_email_config()
             success = send_notification_email(
                 strategy_name='comprehensive',
                 results_file='results/test.json',
-                config=TEST_CONFIG
+                config=email_config
             )
             
             if success:

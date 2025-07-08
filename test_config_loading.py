@@ -33,29 +33,21 @@ def test_config_loading():
     print("✅ 创建测试配置文件: user_config.py")
     
     try:
-        # 导入配置
-        from core.config import config
+        # 导入新的配置系统
+        from core.env_config import env_config
         
         print("✅ 成功导入配置模块")
-        print(f"邮件配置: {config.EMAIL_CONFIG}")
         
-        # 检查配置
-        email_config = config.EMAIL_CONFIG
-        if email_config.get('enabled'):
-            print("✅ 邮件通知已启用")
-        else:
-            print("❌ 邮件通知未启用")
-            
-        if email_config.get('username') and email_config.get('password'):
-            print("✅ 用户名和密码已配置")
-        else:
-            print("❌ 用户名或密码未配置")
-            
-        print(f"SMTP服务器: {email_config.get('smtp_server')}")
-        print(f"SMTP端口: {email_config.get('smtp_port')}")
-        print(f"使用TLS: {email_config.get('use_tls')}")
+        # 打印配置状态
+        env_config.print_config_status()
         
-        return True
+        # 验证配置
+        if env_config.validate_email_config():
+            print("✅ 邮件配置验证通过")
+            return True
+        else:
+            print("❌ 邮件配置验证失败")
+            return False
         
     except Exception as e:
         print(f"❌ 配置加载失败: {e}")

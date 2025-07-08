@@ -107,9 +107,14 @@ jobs:
         if: success() && matrix.strategy == 'comprehensive' # 只对综合策略发送邮件，避免重复
         timeout-minutes: 5  # 邮件发送超时5分钟
         env:
+          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED || 'true' }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER || 'smtp.qq.com' }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT || '465' }}
+          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS || 'false' }}
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_SUBJECT_TEMPLATE: ${{ secrets.EMAIL_SUBJECT_TEMPLATE || '📈 每日选股推荐 - {date}' }}
         run: |
           # 检查邮件配置
           echo "📧 检查邮件配置..."
@@ -118,28 +123,18 @@ jobs:
             exit 0
           fi
           
-          # 创建临时的配置文件，包含邮件和策略配置
-          cat > user_config.py << EOF
-          USER_CONFIG = {
-              'EMAIL_CONFIG': {
-                  'enabled': True,
-                  'smtp_server': 'smtp.qq.com',
-                  'smtp_port': 465,  # 使用SSL端口465
-                  'username': '${{ secrets.EMAIL_USERNAME }}',
-                  'password': '${{ secrets.EMAIL_PASSWORD }}',
-                  'to_email': '${{ secrets.EMAIL_TO }}',
-                  'use_tls': False,  # SSL模式下不使用TLS
-                  'subject_template': '📈 每日选股推荐 - {date}'
-              },
-              'COMPREHENSIVE_STRATEGY_CONFIG': {
-                  'analysis_period': 90,
-                  'min_market_cap': 8000000000,
-                  'max_recent_gain': 25,
-                  'min_score': 75,
-                  'max_stocks': 8
-              }
-          }
-          EOF
+          # 测试新配置系统
+          echo "🔧 测试新配置系统..."
+          python -c "
+          from core.env_config import env_config
+          env_config.print_config_status()
+          
+          if env_config.validate_email_config():
+              print('✅ 邮件配置验证通过')
+          else:
+              print('❌ 邮件配置验证失败')
+              exit(1)
+          "
           
           # 发送邮件通知
           echo "📧 开始发送邮件通知..."
