@@ -32,11 +32,11 @@ jobs:
           TEST_CONFIG = {
               'enabled': True,
               'smtp_server': 'smtp.qq.com',
-              'smtp_port': 587,
+              'smtp_port': 465,  # 使用SSL端口465
               'username': '${{ secrets.EMAIL_USERNAME }}',
               'password': '${{ secrets.EMAIL_PASSWORD }}',
               'to_email': '${{ secrets.EMAIL_TO }}',
-              'use_tls': True,
+              'use_tls': False,  # SSL模式下不使用TLS
               'subject_template': '📈 GitHub Actions测试 - {date}'
           }
           EOF
