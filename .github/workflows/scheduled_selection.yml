@@ -49,6 +49,31 @@ jobs:
       - name: Run stock selection for ${{ matrix.strategy }}
         run: python main.py select --strategy ${{ matrix.strategy }}
 
+      # 第五步：发送邮件通知
+      - name: Send email notification for ${{ matrix.strategy }}
+        if: success() && matrix.strategy == 'comprehensive' # 只对综合策略发送邮件，避免重复
+        env:
+          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          # 创建临时的邮件配置文件
+          cat > user_config.py << EOF
+          EMAIL_CONFIG = {
+              'enabled': True,
+              'smtp_server': 'smtp.gmail.com',
+              'smtp_port': 587,
+              'username': '${{ secrets.EMAIL_USERNAME }}',
+              'password': '${{ secrets.EMAIL_PASSWORD }}',
+              'to_email': '${{ secrets.EMAIL_TO }}',
+              'use_tls': True,
+              'subject_template': '📈 每日选股推荐 - {date}'
+          }
+          EOF
+          
+          # 发送邮件通知
+          python send_email_notification.py ${{ matrix.strategy }}
+
   # 单独创建一个job来处理提交，确保所有策略都运行完毕后再提交
   commit-results:
     needs: run-scheduled-selection # 依赖于选股任务

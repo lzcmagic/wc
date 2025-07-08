@@ -3,12 +3,18 @@
 复制此文件为 user_config.py 并修改相应配置
 """
 
+from datetime import time
+
 # 邮件通知配置
 EMAIL_CONFIG = {
     'enabled': True,  # 开启邮件通知
+    'smtp_server': 'smtp.gmail.com',  # SMTP服务器
+    'smtp_port': 587,  # SMTP端口
     'username': 'your_email@gmail.com',     # 发送邮箱
-    'password': 'your_app_password',        # 邮箱应用密码
+    'password': 'your_app_password',        # 邮箱应用密码（Gmail需要使用应用专用密码）
     'to_email': 'your_email@gmail.com',     # 接收邮箱
+    'use_tls': True,  # 使用TLS加密
+    'subject_template': '📈 每日选股推荐 - {date}',  # 邮件主题模板
 }
 
 # 选股参数调整
