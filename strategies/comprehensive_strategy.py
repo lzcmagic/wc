@@ -207,13 +207,22 @@ class ComprehensiveStrategySelector(BaseSelector):
         # 修复: 从原始的 stock_list_df 中获取名称，正确的列名是 'name'
         stock_list_df = self.fetcher.get_all_stocks_with_market_cap()
         code_to_name = pd.Series(stock_list_df['name'].values, index=stock_list_df['code']).to_dict()
+        code_to_market_cap = pd.Series(stock_list_df['market_cap'].values, index=stock_list_df['code']).to_dict()
 
-        # 格式化为字典列表
+        # 格式化为字典列表，包含 print_results 需要的所有字段
         top_stocks_with_scores = sorted_stocks[:num_to_select]
-        top_stocks = [
-            {'code': code, 'name': code_to_name.get(code, ''), 'score': score}
-            for code, score in top_stocks_with_scores
-        ]
+        top_stocks = []
+        
+        for code, score in top_stocks_with_scores:
+            stock_data = {
+                'code': code, 
+                'name': code_to_name.get(code, ''), 
+                'score': score,
+                'reasons': ['综合评分优秀'],  # 添加推荐理由
+                'price': 0.0,  # 占位价格
+                'market_cap': code_to_market_cap.get(code, 0) / 100000000  # 转换为亿元
+            }
+            top_stocks.append(stock_data)
         
         return top_stocks
 
