@@ -21,56 +21,73 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Test QQ Email
+      - name: Debug QQ Email Configuration
         env:
           EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
         run: |
-          # 创建测试配置
-          cat > test_config.py << EOF
-          TEST_CONFIG = {
-              'enabled': True,
-              'smtp_server': 'smtp.qq.com',
-              'smtp_port': 465,  # 使用SSL端口465
-              'username': '${{ secrets.EMAIL_USERNAME }}',
-              'password': '${{ secrets.EMAIL_PASSWORD }}',
-              'to_email': '${{ secrets.EMAIL_TO }}',
-              'use_tls': False,  # SSL模式下不使用TLS
-              'subject_template': '📈 GitHub Actions测试 - {date}'
-          }
-          EOF
+          echo "🔍 开始详细调试QQ邮箱配置..."
+          echo "环境变量检查:"
+          echo "EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME != '' && '已设置' || '未设置' }}"
+          echo "EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD != '' && '已设置' || '未设置' }}"
+          echo "EMAIL_TO: ${{ secrets.EMAIL_TO != '' && '已设置' || '未设置' }}"
           
-          # 创建测试结果文件
-          mkdir -p results
-          cat > results/test.json << EOF
-          [
-              {
-                  "code": "000001",
-                  "name": "平安银行",
-                  "score": 85.5,
-                  "price": 12.34,
-                  "market_cap": 1234.5,
-                  "reasons": ["技术指标优秀", "基本面良好"]
-              }
-          ]
-          EOF
+          # 运行调试脚本
+          python debug_qq_email.py
           
-          # 测试邮件发送
-          python -c "
-          from core.email_sender import send_notification_email
-          from test_config import TEST_CONFIG
-          import os
-          
-          success = send_notification_email(
-              strategy_name='comprehensive',
-              results_file='results/test.json',
-              config=TEST_CONFIG
-          )
-          
-          if success:
-              print('✅ GitHub Actions邮件测试成功！')
-          else:
-              print('❌ GitHub Actions邮件测试失败！')
-              exit(1)
-          " 
+          # 如果调试成功，再测试完整功能
+          if [ $? -eq 0 ]; then
+            echo "✅ 调试成功，测试完整邮件功能..."
+            
+            # 创建测试配置
+            cat > test_config.py << EOF
+            TEST_CONFIG = {
+                'enabled': True,
+                'smtp_server': 'smtp.qq.com',
+                'smtp_port': 465,  # 使用SSL端口465
+                'username': '${{ secrets.EMAIL_USERNAME }}',
+                'password': '${{ secrets.EMAIL_PASSWORD }}',
+                'to_email': '${{ secrets.EMAIL_TO }}',
+                'use_tls': False,  # SSL模式下不使用TLS
+                'subject_template': '📈 GitHub Actions测试 - {date}'
+            }
+            EOF
+            
+            # 创建测试结果文件
+            mkdir -p results
+            cat > results/test.json << EOF
+            [
+                {
+                    "code": "000001",
+                    "name": "平安银行",
+                    "score": 85.5,
+                    "price": 12.34,
+                    "market_cap": 1234.5,
+                    "reasons": ["技术指标优秀", "基本面良好"]
+                }
+            ]
+            EOF
+            
+            # 测试邮件发送
+            python -c "
+            from core.email_sender import send_notification_email
+            from test_config import TEST_CONFIG
+            import os
+            
+            success = send_notification_email(
+                strategy_name='comprehensive',
+                results_file='results/test.json',
+                config=TEST_CONFIG
+            )
+            
+            if success:
+                print('✅ GitHub Actions邮件测试成功！')
+            else:
+                print('❌ GitHub Actions邮件测试失败！')
+                exit(1)
+            "
+          else
+            echo "❌ 调试失败，请检查GitHub Secrets配置"
+            exit(1)
+          fi 

@@ -6,9 +6,14 @@ on:
   
   # 定时触发
   schedule:
-    # CRON 表达式，代表在 UTC 时间的周一至周五的 1:35 执行。
-    # 这对应于北京时间 (UTC+8) 的上午 9:35。
-    - cron: '35 1 * * 1-5'
+    # CRON 表达式，代表在 UTC 时间的周一至周五执行。
+    # 北京时间 (UTC+8) 对应关系：
+    # 9:35 (北京时间) = 1:35 (UTC)
+    # 12:00 (北京时间) = 4:00 (UTC)  
+    # 16:00 (北京时间) = 8:00 (UTC)
+    - cron: '35 1 * * 1-5'   # 9:35 (北京时间)
+    - cron: '0 4 * * 1-5'    # 12:00 (北京时间)
+    - cron: '0 8 * * 1-5'    # 16:00 (北京时间)
 
 jobs:
   run-scheduled-selection:
@@ -62,11 +67,11 @@ jobs:
           EMAIL_CONFIG = {
               'enabled': True,
               'smtp_server': 'smtp.qq.com',
-              'smtp_port': 587,
+              'smtp_port': 465,  # 使用SSL端口465
               'username': '${{ secrets.EMAIL_USERNAME }}',
               'password': '${{ secrets.EMAIL_PASSWORD }}',
               'to_email': '${{ secrets.EMAIL_TO }}',
-              'use_tls': True,
+              'use_tls': False,  # SSL模式下不使用TLS
               'subject_template': '📈 每日选股推荐 - {date}'
           }
           EOF

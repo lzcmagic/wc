@@ -1,107 +1,136 @@
 #!/usr/bin/env python3
 """
-调试QQ邮箱连接问题
+QQ邮箱调试脚本 - 详细诊断版本
 """
 
+import os
 import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-def test_smtp_connection():
+def test_smtp_connection(config):
     """测试SMTP连接"""
-    print("🔍 开始调试QQ邮箱连接...")
+    print(f"🔍 开始SMTP连接测试...")
+    print(f"服务器: {config['smtp_server']}")
+    print(f"端口: {config['smtp_port']}")
+    print(f"用户名: {config['username']}")
+    print(f"密码长度: {len(config['password']) if config['password'] else 0}")
+    print(f"接收邮箱: {config['to_email']}")
+    print(f"使用TLS: {config['use_tls']}")
     
-    # 配置
-    smtp_server = 'smtp.qq.com'
-    port_587 = 587
-    port_465 = 465
-    username = '844497109@qq.com'
-    password = 'ktnuezzpjgvsbbee'
-    
-    print(f"📧 邮箱: {username}")
-    print(f"🔑 授权码: {password[:4]}****{password[-4:]}")
-    
-    # 测试587端口
-    print(f"\n🔌 测试端口 {port_587} (TLS)...")
     try:
-        server = smtplib.SMTP(smtp_server, port_587, timeout=10)
-        print("✅ SMTP连接成功")
+        # 测试连接
+        if config['smtp_port'] == 465:
+            print("📡 尝试SSL连接...")
+            server = smtplib.SMTP_SSL(config['smtp_server'], config['smtp_port'])
+            print("✅ SSL连接成功")
+        else:
+            print("📡 尝试TLS连接...")
+            server = smtplib.SMTP(config['smtp_server'], config['smtp_port'])
+            if config['use_tls']:
+                server.starttls()
+                print("✅ TLS连接成功")
         
-        server.starttls()
-        print("✅ TLS握手成功")
-        
-        server.login(username, password)
+        # 测试登录
+        print("🔐 尝试登录...")
+        server.login(config['username'], config['password'])
         print("✅ 登录成功")
         
-        server.quit()
-        print("✅ 587端口测试完成")
-        return True
-        
-    except Exception as e:
-        print(f"❌ 587端口测试失败: {e}")
-    
-    # 测试465端口
-    print(f"\n🔌 测试端口 {port_465} (SSL)...")
-    try:
-        context = ssl.create_default_context()
-        server = smtplib.SMTP_SSL(smtp_server, port_465, context=context, timeout=10)
-        print("✅ SSL连接成功")
-        
-        server.login(username, password)
-        print("✅ 登录成功")
-        
-        server.quit()
-        print("✅ 465端口测试完成")
-        return True
-        
-    except Exception as e:
-        print(f"❌ 465端口测试失败: {e}")
-    
-    return False
-
-def test_send_simple_email():
-    """测试发送简单邮件"""
-    print(f"\n📤 测试发送简单邮件...")
-    
-    try:
-        # 创建邮件
+        # 测试发送
+        print("📧 尝试发送测试邮件...")
         msg = MIMEMultipart()
-        msg['From'] = '844497109@qq.com'
-        msg['To'] = 'l1396448080@gmail.com'
-        msg['Subject'] = '测试QQ邮箱发送'
+        msg['From'] = config['username']
+        msg['To'] = config['to_email']
+        msg['Subject'] = '🔧 QQ邮箱连接测试'
         
-        body = "这是一封测试邮件，用于验证QQ邮箱SMTP配置。"
-        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        body = f"""
+        <html>
+        <body>
+            <h2>QQ邮箱连接测试成功！</h2>
+            <p>时间: {os.popen('date').read().strip()}</p>
+            <p>服务器: {config['smtp_server']}:{config['smtp_port']}</p>
+            <p>连接方式: {'SSL' if config['smtp_port'] == 465 else 'TLS'}</p>
+        </body>
+        </html>
+        """
         
-        # 发送邮件
-        server = smtplib.SMTP_SSL('smtp.qq.com', 465, timeout=10)
-        server.login('844497109@qq.com', 'ktnuezzpjgvsbbee')
+        msg.attach(MIMEText(body, 'html'))
         
-        text = msg.as_string()
-        server.sendmail('844497109@qq.com', 'l1396448080@gmail.com', text)
+        server.send_message(msg)
+        print("✅ 测试邮件发送成功")
+        
         server.quit()
-        
-        print("✅ 简单邮件发送成功！")
         return True
         
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"❌ 认证失败: {e}")
+        print("可能原因:")
+        print("1. 用户名或密码错误")
+        print("2. 授权码已过期")
+        print("3. 未开启SMTP服务")
+        return False
+        
+    except smtplib.SMTPConnectError as e:
+        print(f"❌ 连接失败: {e}")
+        print("可能原因:")
+        print("1. 网络连接问题")
+        print("2. 防火墙阻止")
+        print("3. 服务器地址或端口错误")
+        return False
+        
+    except smtplib.SMTPException as e:
+        print(f"❌ SMTP错误: {e}")
+        return False
+        
     except Exception as e:
-        print(f"❌ 简单邮件发送失败: {e}")
+        print(f"❌ 未知错误: {e}")
         return False
 
-if __name__ == "__main__":
-    print("🚀 QQ邮箱连接调试工具")
+def main():
+    """主函数"""
+    print("🚀 QQ邮箱调试工具")
     print("=" * 50)
     
-    # 测试连接
-    connection_ok = test_smtp_connection()
+    # 检查环境变量
+    print("📋 环境变量检查:")
+    email_username = os.getenv('EMAIL_USERNAME', '')
+    email_password = os.getenv('EMAIL_PASSWORD', '')
+    email_to = os.getenv('EMAIL_TO', '')
     
-    if connection_ok:
-        # 测试发送
-        test_send_simple_email()
+    print(f"EMAIL_USERNAME: {'已设置' if email_username else '未设置'}")
+    print(f"EMAIL_PASSWORD: {'已设置' if email_password else '未设置'}")
+    print(f"EMAIL_TO: {'已设置' if email_to else '未设置'}")
+    
+    if not all([email_username, email_password, email_to]):
+        print("\n❌ 环境变量未完全设置！")
+        print("请在GitHub Secrets中设置以下变量:")
+        print("- EMAIL_USERNAME: QQ邮箱地址")
+        print("- EMAIL_PASSWORD: QQ邮箱授权码")
+        print("- EMAIL_TO: 接收邮箱地址")
+        return
+    
+    # 测试配置
+    config = {
+        'smtp_server': 'smtp.qq.com',
+        'smtp_port': 465,
+        'username': email_username,
+        'password': email_password,
+        'to_email': email_to,
+        'use_tls': False
+    }
+    
+    print("\n" + "=" * 50)
+    success = test_smtp_connection(config)
+    
+    if success:
+        print("\n🎉 所有测试通过！QQ邮箱配置正确。")
     else:
-        print("\n💡 建议检查：")
-        print("1. QQ邮箱是否开启了SMTP服务")
-        print("2. 授权码是否正确")
-        print("3. 网络环境是否有限制")
-        print("4. 尝试在GitHub Actions中测试") 
+        print("\n💡 故障排除建议:")
+        print("1. 检查QQ邮箱是否开启SMTP服务")
+        print("2. 确认授权码是否正确且未过期")
+        print("3. 检查网络连接")
+        print("4. 尝试使用587端口+TLS")
+
+if __name__ == "__main__":
+    main() 
