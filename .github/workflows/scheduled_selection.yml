@@ -62,41 +62,9 @@ jobs:
       - name: Run stock selection for ${{ matrix.strategy }}
         timeout-minutes: 60  # 设置60分钟超时
         run: |
-          # 调试：检查策略配置
-          python -c "from core.config import get_strategy_config; config = get_strategy_config('${{ matrix.strategy }}'); print('Config keys:', list(config.keys())); print('analysis_period:', config.get('analysis_period', 'NOT_FOUND'))"
-          
-          # 网络诊断
-          echo "🔍 网络诊断..."
-          ping -c 3 baidu.com || echo "⚠️ 网络连接不稳定"
-          
-          # 检查Python环境
-          echo "🔍 检查Python环境..."
-          python -c "import akshare as ak; print('✅ akshare导入成功')"
-          
-          # 测试数据获取（增加更多重试）
-          echo "🔍 测试数据获取..."
-          python -c "
-          import akshare as ak
-          import time
-          for i in range(5):
-              try:
-                  df = ak.stock_zh_a_spot_em()
-                  if not df.empty:
-                      print(f'✅ 第{i+1}次尝试成功，获取 {len(df)} 只股票数据')
-                      break
-                  else:
-                      print(f'⚠️ 第{i+1}次尝试返回空数据')
-              except Exception as e:
-                  print(f'❌ 第{i+1}次尝试失败: {e}')
-              if i < 4:
-                  time.sleep(5)
-          else:
-              print('❌ 所有测试尝试都失败了')
-          "
-          
-          # 运行选股（如果网络测试通过）
+          # 直接运行核心的选股脚本
           echo "🚀 开始运行选股策略..."
-          python main.py select --strategy ${{ matrix.strategy }} || echo "❌ 选股失败，可能是网络问题"
+          python main.py select --strategy ${{ matrix.strategy }}
           
           # 检查结果文件
           echo "📊 检查结果文件..."
@@ -147,37 +115,4 @@ jobs:
         with:
           name: results-${{ matrix.strategy }}
           path: results/
-          retention-days: 7
-
-  # 单独创建一个job来处理提交，确保所有策略都运行完毕后再提交
-  commit-results:
-    needs: run-scheduled-selection # 依赖于选股任务
-    runs-on: ubuntu-latest
-    # 在定时任务、手动触发或push事件时执行
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 下载所有策略的结果文件
-      - name: Download all results
-        uses: actions/download-artifact@v4
-        with:
-          path: results/
-
-      # 检查结果文件
-      - name: Check results files
-        run: |
-          echo "📊 检查结果文件..."
-          ls -la results/ || echo "⚠️ results目录不存在"
-          find . -name "*.json" -type f || echo "⚠️ 未找到JSON文件"
-
-      # 提交结果文件
-      - name: Commit and push results
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "feat(auto): 更新每日选股结果 - $(date +'%Y-%m-%d %H:%M')"
-          file_pattern: 'results/*.json'
-          commit_user_name: GitHub Actions Bot
-          commit_user_email: actions@github.com 
+          retention-days: 7 

@@ -11,40 +11,6 @@ import time
 from functools import lru_cache, wraps
 import functools
 
-def retry(max_retries=3, delay=3, exceptions=(Exception,)):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            for attempt in range(1, max_retries + 1):
-                try:
-                    result = func(*args, **kwargs)
-                    # 如果成功获取到数据，直接返回
-                    if result is not None and (not hasattr(result, 'empty') or not result.empty):
-                        return result
-                    # 如果返回空数据，也重试
-                    if attempt < max_retries:
-                        print(f"⚠️ 第{attempt}次尝试返回空数据，重试中...")
-                        time.sleep(delay * attempt)  # 递增延迟
-                except exceptions as e:
-                    print(f"⚠️ 第{attempt}次尝试失败: {e}")
-                    if attempt < max_retries:
-                        delay_time = delay * attempt  # 递增延迟
-                        print(f"   等待 {delay_time} 秒后重试...")
-                        time.sleep(delay_time)
-                    else:
-                        print(f"❌ {func.__name__} 多次重试后依然失败，返回空结果。")
-            # 所有重试都失败后，返回空结果
-            if func.__name__ == 'get_all_stocks_with_market_cap' or (func.__name__.startswith('get_') and 'data' in func.__name__):
-                return pd.DataFrame()
-            elif func.__name__.startswith('get_') and 'info' in func.__name__:
-                return {}
-            elif func.__name__.startswith('get_') and 'market_cap' in func.__name__:
-                return {'market_cap': 0, 'circulation_market_cap': 0}
-            else:
-                return None
-        return wrapper
-    return decorator
-
 class StockDataFetcher:
     def __init__(self, config=None):
         self.max_retries = 3
@@ -65,7 +31,6 @@ class StockDataFetcher:
             print(f"❌ 获取交易日历失败: {e}")
             return pd.date_range(start=start_date, end=end_date, freq='B').tolist()
 
-    @retry(max_retries=3, delay=5)
     def get_all_stocks_with_market_cap(self):
         """
         获取当前所有A股的列表及其市值信息。
@@ -111,10 +76,9 @@ class StockDataFetcher:
             print(f"❌ 获取全量A股列表失败: {e}")
             return pd.DataFrame()
     
-    @retry(max_retries=3, delay=5)
     def get_stock_data(self, stock_code, period=120, end_date=None):
         """
-        获取股票历史数据
+        获取股票历史数据，并健壮地处理列名不匹配的问题。
         
         Args:
             stock_code: 股票代码，如 '000001'
@@ -134,15 +98,38 @@ class StockDataFetcher:
                 end_date=end_date.strftime('%Y%m%d'),
                 adjust="qfq"  # 前复权
             )
-            # 数据清洗和重命名
-            df.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'turnover', 'amplitude', 'change_pct', 'change_amount', 'turnover_rate']
+
+            # --- 健壮的列处理方式 ---
+            # 1. 定义我们需要的列和它们的映射关系
+            column_mapping = {
+                '日期': 'date',
+                '开盘': 'open',
+                '收盘': 'close',
+                '最高': 'high',
+                '最低': 'low',
+                '成交量': 'volume',
+                '成交额': 'turnover',
+                '振幅': 'amplitude',
+                '涨跌幅': 'change_pct',
+                '涨跌额': 'change_amount',
+                '换手率': 'turnover_rate'
+            }
+
+            # 2. 只保留原始df中存在的、我们需要的列
+            existing_columns = {k: v for k, v in column_mapping.items() if k in df.columns}
+            df = df[existing_columns.keys()].copy()
+
+            # 3. 对这些存在的列进行重命名
+            df.rename(columns=existing_columns, inplace=True)
+
+            # 4. 类型转换
             df['date'] = pd.to_datetime(df['date'])
+            
             return df
         except Exception as e:
             print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
             return pd.DataFrame()
     
-    @retry(max_retries=3, delay=5)
     def get_stock_info(self, stock_code):
         """获取股票基本信息"""
         try:
@@ -168,7 +155,6 @@ class StockDataFetcher:
             print(f"获取股票 {stock_code} 信息失败: {e}")
             return {}
     
-    @retry(max_retries=3, delay=5)
     def get_market_cap(self, stock_code):
         """获取股票市值信息"""
         try:
@@ -259,7 +245,7 @@ class StockDataFetcher:
             print(f"❌ 获取 {date_str} 的价格失败: {e}")
             return {}
 
-    @retry(max_retries=3, delay=5)
+    @lru_cache(maxsize=1)
     def get_fundamental_data(self, stock_code: str) -> dict:
         """
         获取单个股票的核心基本面数据 (PE, PB, ROE).

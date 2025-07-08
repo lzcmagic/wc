@@ -20,7 +20,7 @@ class StrategyConfig:
         'max_stocks': 10,
         
         # 基础筛选条件
-        'min_market_cap': 5000000000,       # 50亿
+        'min_market_cap': 3000000000,       # 50亿
         'max_market_cap': 200 * 100000000,  # 200亿
         'max_recent_gain': 30,              # 30%
         'min_score': 60,                    # 最低评分60分

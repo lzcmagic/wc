@@ -5,6 +5,7 @@ import time
 import pandas as pd
 from tqdm import tqdm
 import numpy as np
+import concurrent.futures
 
 from data_fetcher import StockDataFetcher
 from core.config import config
@@ -70,38 +71,61 @@ class BaseSelector:
             return df[df['market_cap'] <= max_cap].copy()
         return df
 
-    def _score_stocks(self, candidate_stocks, for_date=None):
-        """为候选股票评分"""
+    def _score_single_stock(self, stock_info, for_date=None):
+        """
+        为单只股票评分。此方法将被并发调用。
+        :param stock_info: 包含 'code', 'name', 'market_cap' 的元组或字典
+        :param for_date: 回测日期
+        :return: 包含评分结果的字典，如果失败则返回 None
+        """
+        stock_code, stock_name, market_cap = stock_info['code'], stock_info['name'], stock_info.get('market_cap', 0)
         period = self.config.get('period', 120)
+
+        stock_data = self.fetcher.get_stock_data(stock_code, period=period, end_date=for_date)
+
+        if stock_data is None or stock_data.empty or len(stock_data) < period / 2:
+            return None
+
+        stock_data_with_indicators = calculate_indicators(stock_data, self.config['indicators'])
+        
+        score, reasons = self._apply_strategy(stock_data_with_indicators)
+
+        if score > 0:
+            return {
+                'code': stock_code,
+                'name': stock_name,
+                'score': score,
+                'reasons': reasons,
+                'price': stock_data.iloc[-1]['close'],
+                'market_cap': market_cap
+            }
+        return None
+
+    def _score_stocks(self, candidate_stocks, for_date=None):
+        """为候选股票评分 (并发版本)"""
         results = []
         total = len(candidate_stocks)
+        # 从配置或默认值获取并发线程数
+        max_workers = self.config.get('max_workers', 10)
 
-        print(f"\n给 {total} 只候选股票进行评分...")
+        print(f"\n使用 {max_workers} 个线程，为 {total} 只候选股票进行并发评分...")
+        
+        # 将DataFrame转换为字典列表以便传递给并发任务
+        tasks = [row for index, row in candidate_stocks.iterrows()]
+
         with tqdm(total=total, desc=f"{self.strategy_name} 评分进度") as pbar:
-            for index, row in candidate_stocks.iterrows():
-                stock_code = row['code']
-                stock_name = row['name']
+            # 使用ThreadPoolExecutor进行并发处理
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # 使用 functools.partial 来固定 for_date 参数
+                from functools import partial
+                score_func = partial(self._score_single_stock, for_date=for_date)
                 
-                stock_data = self.fetcher.get_stock_data(stock_code, period=period, end_date=for_date)
+                # executor.map 会按顺序返回结果
+                for result in executor.map(score_func, tasks):
+                    if result:
+                        results.append(result)
+                    pbar.update(1) # 每次完成一个任务（无论成功失败）都更新进度条
 
-                if stock_data is None or stock_data.empty or len(stock_data) < period / 2:
-                    pbar.update(1)
-                    continue
-
-                stock_data_with_indicators = calculate_indicators(stock_data, self.config['indicators'])
-                
-                score, reasons = self._apply_strategy(stock_data_with_indicators)
-
-                if score > 0:
-                    results.append({
-                        'code': stock_code,
-                        'name': stock_name,
-                        'score': score,
-                        'reasons': reasons,
-                        'price': stock_data.iloc[-1]['close'],
-                        'market_cap': row.get('market_cap', 0)
-                    })
-                pbar.update(1)
         return results
 
     def _apply_strategy(self, data):
