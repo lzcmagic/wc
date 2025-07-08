@@ -89,7 +89,7 @@ class StockScorer:
         }
         self.last_reasons = []
     
-    def calculate_score(self, stock_data):
+    def calculate_score(self, stock_data, config=None):
         """
         计算股票综合评分
         

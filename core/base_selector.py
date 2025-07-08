@@ -85,6 +85,9 @@ class BaseSelector:
 
         if stock_data is None or stock_data.empty or len(stock_data) < period / 2:
             return None
+        
+        # 将股票代码添加到DataFrame中，以便后续步骤（如综合策略）可以使用
+        stock_data['code_in_df'] = stock_code
 
         stock_data_with_indicators = calculate_indicators(stock_data, self.config['indicators'])
         

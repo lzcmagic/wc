@@ -69,96 +69,45 @@ class ComprehensiveStrategySelector(BaseSelector):
         # 此处未来可以接入行业轮动、赛道前景等分析
         return 75, ["行业中性(占位)"]
 
-    def _filter_and_score_stocks(self, stock_list, for_date=None):
-        """对筛选后的股票进行四维评分"""
-        final_results = []
-        for idx, stock in enumerate(stock_list):
-            print(f"  分析: {stock['name']} ({stock['code']}) [{idx + 1}/{len(stock_list)}]")
-            stock_data = self.fetcher.get_stock_data(stock['code'], self.config['analysis_period'], end_date=for_date)
-            if stock_data.empty:
-                continue
+    def _apply_strategy(self, data):
+        """
+        应用综合策略对单只股票进行评分。
+        此方法在 BaseSelector 中被并发调用。
+        """
+        stock_code = data.iloc[-1]['code_in_df'] # 从数据中获取股票代码
 
-            tech_score, tech_reasons = self.scorer.calculate_score(stock_data), self.scorer.get_signal_reasons(stock_data)
-            funda_score, funda_reasons = self._calculate_fundamental_score(stock['code'])
-            senti_score, senti_reasons = self._calculate_sentiment_score(stock['code'])
-            ind_score, ind_reasons = self._calculate_industry_score(stock['code'])
+        # 1. 计算各维度分数
+        tech_score, tech_reasons = self.scorer.calculate_score(data, self.config)
+        funda_score, funda_reasons = self._calculate_fundamental_score(stock_code)
+        senti_score, senti_reasons = self._calculate_sentiment_score(stock_code)
+        ind_score, ind_reasons = self._calculate_industry_score(stock_code)
 
-            total_score = (tech_score * self.weights['technical'] +
-                           funda_score * self.weights['fundamental'] +
-                           senti_score * self.weights['sentiment'] +
-                           ind_score * self.weights['industry'])
-            
-            if total_score >= self.config['min_score']:
-                result = {
-                    'code': stock['code'],
-                    'name': stock['name'],
-                    'score': round(total_score, 1),
-                    'reasons': tech_reasons + funda_reasons,
-                    'details': {
-                        'tech_score': round(tech_score,1),
-                        'funda_score': round(funda_score,1),
-                        'senti_score': round(senti_score,1),
-                        'ind_score': round(ind_score,1),
-                    }
-                }
-                if not stock_data.empty:
-                    result['current_price'] = round(stock_data['close'].iloc[-1], 2)
+        # 2. 根据权重计算总分
+        weights = self.weights
+        total_score = (tech_score * weights.get('technical', 0) +
+                       funda_score * weights.get('fundamental', 0) +
+                       senti_score * weights.get('sentiment', 0) +
+                       ind_score * weights.get('industry', 0))
 
-                final_results.append(result)
-                print(f"    => 总分: {total_score:.1f} (入选)")
-            else:
-                print(f"    => 总分: {total_score:.1f} (低于阈值)")
-            
-            time.sleep(self.config.get('api_call_delay', 0.2))
-        return final_results
+        # 3. 组合推荐理由
+        reasons = tech_reasons + funda_reasons
+
+        # 4. 判断是否满足最低分
+        if total_score >= self.config.get('min_score', 0):
+            return total_score, reasons
+        else:
+            return 0, []
 
     def run_selection(self, all_stocks=None, for_date=None):
         """
-        执行完整的四维选股策略
+        执行完整的四维综合选股策略
+        复用 BaseSelector 的骨架，只关注策略实现本身。
         """
-        print(f"\n{'='*20} 开始执行四维综合分析策略 {'='*20}\n")
-        start_time = time.time()
-
-        # 1. 数据获取: 如果没有传入数据，则实时获取
-        # 修复: 调用正确的数据获取方法
-        stock_list_df = all_stocks if all_stocks is not None else self.fetcher.get_all_stocks_with_market_cap()
-        if stock_list_df.empty:
-            print("❌ 未能获取到股票列表，策略终止。")
-            return pd.DataFrame()
-
-        print(f"   - 获取到 {len(stock_list_df)} 只初始股票。")
-        
-        # 2. 基础筛选
-        # (这里的筛选逻辑可以根据综合策略的需求定制，暂时从简)
-        filtered_stocks = stock_list_df[~stock_list_df['name'].str.contains('ST|退|N')].copy()
-        filtered_stocks = filtered_stocks[filtered_stocks['market_cap'] >= self.config['min_market_cap']]
-        
-        print(f"   - 基础筛选完成，剩余 {len(filtered_stocks)} 只股票，耗时: {time.time() - start_time:.2f} 秒")
-
-        # 3. 四维分析
-        technical_scores = self.analyze_technical(filtered_stocks, for_date)
-        fundamental_scores = self.analyze_fundamental(filtered_stocks)
-        market_scores = self.analyze_market_sentiment(filtered_stocks)
-        industry_scores = self.analyze_industry_rotation(filtered_stocks)
-
-        # 5. 结果综合与输出
-        final_scores = self.calculate_final_score(
-            technical_scores, fundamental_scores, market_scores, industry_scores
-        )
-        top_stocks = self.get_top_stocks(final_scores)
-
-        # 6. 保存和打印结果
-        self.save_results(top_stocks, for_date=for_date)
-
-        if not for_date:
-            self.print_results(top_stocks)
-
-        end_time = time.time()
-        print(f"\n{'='*20} 四维综合分析策略执行完毕 {'='*20}")
-        print(f"   - 耗时: {end_time - start_time:.2f} 秒")
-        print(f"{'='*58}\n")
-
-        return top_stocks 
+        # 在评分前，为每行数据添加股票代码，以便在_apply_strategy中可以获取
+        if all_stocks is not None:
+            all_stocks['code_in_df'] = all_stocks['code']
+            
+        return super().run_selection(all_stocks=all_stocks, for_date=for_date)
 
     def calculate_final_score(self, tech_scores, fund_scores, market_scores, industry_scores):
         """

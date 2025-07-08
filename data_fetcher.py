@@ -37,7 +37,7 @@ class StockDataFetcher:
         此函数在数据源头进行预筛选，以提高后续处理效率。
         筛选逻辑:
         1. 排除ST、*ST和退市股票。
-        2. 只保留总市值小于200亿的股票。
+        2. 只保留总市值在30亿到500亿之间的股票。
         """
         print(f"   - 正在获取全量A股列表并进行预筛选...")
         try:
@@ -55,12 +55,12 @@ class StockDataFetcher:
             after_st_filter_count = len(df)
             print(f"   - 排除ST和退市股后剩余: {after_st_filter_count} 只")
 
-            # 2. 筛选掉总市值大于等于200亿的股票
-            # akshare返回的'总市值'单位是元
-            market_cap_limit = 200 * 10**8
-            df = df[df['总市值'] < market_cap_limit]
+            # 2. 筛选总市值在30亿到500亿之间的股票
+            market_cap_min = 30 * 10**8
+            market_cap_max = 500 * 10**8
+            df = df[df['总市值'].between(market_cap_min, market_cap_max)]
             after_cap_filter_count = len(df)
-            print(f"   - 市值筛选 (小于200亿) 后剩余: {after_cap_filter_count} 只")
+            print(f"   - 市值筛选 (30亿-500亿) 后剩余: {after_cap_filter_count} 只")
 
             df = df[['代码', '名称', '总市值', '流通市值']].copy()
             df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
