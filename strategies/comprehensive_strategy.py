@@ -111,19 +111,20 @@ class ComprehensiveStrategySelector(BaseSelector):
         return final_results
 
     def run_selection(self, all_stocks=None, for_date=None):
-        """执行四维综合选股策略"""
-        if for_date:
-            print(f"\n--- [综合策略] 回测日期: {for_date.strftime('%Y-%m-%d')} ---")
-        else:
-            print(f"\n{'='*20} 开始执行四维综合分析策略 {'='*20}")
+        """
+        执行完整的四维选股策略
+        """
+        print(f"\n{'='*20} 开始执行四维综合分析策略 {'='*20}\n")
+        start_time = time.time()
 
-        start_time = datetime.now()
-
-        # 1. 获取股票池
-        stock_list_df = all_stocks if all_stocks is not None else self.fetcher.get_stock_list()
+        # 1. 数据获取: 如果没有传入数据，则实时获取
+        # 修复: 调用正确的数据获取方法
+        stock_list_df = all_stocks if all_stocks is not None else self.fetcher.get_all_stocks_with_market_cap()
         if stock_list_df.empty:
-            print("错误：无法获取股票列表。")
-            return []
+            print("❌ 未能获取到股票列表，策略终止。")
+            return pd.DataFrame()
+
+        print(f"   - 获取到 {len(stock_list_df)} 只初始股票。")
         
         # 2. 基础筛选
         # (这里的筛选逻辑可以根据综合策略的需求定制，暂时从简)
