@@ -68,19 +68,44 @@ class StockDataFetcher:
     @retry(max_retries=3, delay=5)
     def get_all_stocks_with_market_cap(self):
         """
-        获取当前所有A股的列表及其市值信息。此函数应在回测开始时调用一次。
+        获取当前所有A股的列表及其市值信息。
+        此函数在数据源头进行预筛选，以提高后续处理效率。
+        筛选逻辑:
+        1. 排除ST、*ST和退市股票。
+        2. 只保留总市值小于200亿的股票。
         """
-        print(f"   - 正在获取全量A股列表及市值信息...")
+        print(f"   - 正在获取全量A股列表并进行预筛选...")
         try:
             df = ak.stock_zh_a_spot_em()
             if df.empty: 
+                print("   - 警告：未能从akshare获取到股票列表。")
                 return pd.DataFrame()
+
+            # 预筛选前股票数量
+            original_count = len(df)
+            print(f"   - 获取到 {original_count} 只股票，开始进行市值和状态筛选...")
+
+            # 1. 筛选掉ST、*ST和退市股 (名称中包含'ST'或'退')
+            df = df[~df['名称'].str.contains('ST|退', na=False)]
+            after_st_filter_count = len(df)
+            print(f"   - 排除ST和退市股后剩余: {after_st_filter_count} 只")
+
+            # 2. 筛选掉总市值大于等于200亿的股票
+            # akshare返回的'总市值'单位是元
+            market_cap_limit = 200 * 10**8
+            df = df[df['总市值'] < market_cap_limit]
+            after_cap_filter_count = len(df)
+            print(f"   - 市值筛选 (小于200亿) 后剩余: {after_cap_filter_count} 只")
 
             df = df[['代码', '名称', '总市值', '流通市值']].copy()
             df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
             
             df['code'] = df['code'].astype(str)
             df = df.dropna(subset=['market_cap'])
+            
+            final_count = len(df)
+            print(f"   - ✅ 预筛选完成，最终候选股票数量: {final_count} (从 {original_count} 筛选而来)")
+            
             return df
         except Exception as e:
             print(f"❌ 获取全量A股列表失败: {e}")

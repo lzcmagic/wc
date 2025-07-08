@@ -60,7 +60,7 @@ jobs:
 
       # 第四步：根据矩阵中的策略名称运行选股脚本
       - name: Run stock selection for ${{ matrix.strategy }}
-        timeout-minutes: 30  # 设置30分钟超时
+        timeout-minutes: 60  # 设置60分钟超时
         run: |
           # 调试：检查策略配置
           python -c "from core.config import get_strategy_config; config = get_strategy_config('${{ matrix.strategy }}'); print('Config keys:', list(config.keys())); print('analysis_period:', config.get('analysis_period', 'NOT_FOUND'))"
