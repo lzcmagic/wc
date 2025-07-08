@@ -64,21 +64,50 @@ class Config:
 
     # 策略2: 四维综合分析策略 (原增强版)
     COMPREHENSIVE_STRATEGY_CONFIG = {
-        'period': 90,
-        'top_n': 8,
-        'max_market_cap': 200 * 100000000,
-        'indicators': [
+        'strategy_name': 'comprehensive',
+        'display_name': '四维综合分析策略',
+        
+        # 基础运行参数
+        'analysis_period': 90,
+        'max_stocks': 8,
+
+        # 基础筛选条件
+        'min_market_cap': 8000000000,    # 80亿市值
+        'max_recent_gain': 25,           # 近期最大涨幅25%
+        'min_score': 75,                 # 最低总评分75
+
+        # 1. 技术面分析配置
+        'technical_indicators': [
             {"kind": "sma", "length": 5},
             {"kind": "sma", "length": 10},
             {"kind": "sma", "length": 20},
-            {"kind": "sma", "length": 60},
-            {"kind": "ema", "close": "volume", "length": 5, "col_names": ("VOL_5",)},
-            {"kind": "ema", "close": "volume", "length": 60, "col_names": ("VOL_60",)},
-            {"kind": "macd"},
+            {"kind": "adx"},
+            {"kind": "macd", "fast": 9, "slow": 19, "signal": 6}, # 使用优化参数
             {"kind": "rsi"},
-            {"kind": "bbands"},
-            {"kind": "atr"}
-        ]
+            {"kind": "kdj"}
+        ],
+        
+        # 2. 基本面筛选配置 (新增)
+        'fundamental_filters': {
+            'max_pe_ttm': 30,
+            'min_roe': 5,
+            'max_pb': 5,
+            'max_debt_ratio': 0.6 # 资产负债率
+        },
+
+        # 3. 市场情绪分析配置 (占位)
+        'sentiment_config': {},
+
+        # 4. 行业分析配置 (占位)
+        'industry_config': {},
+
+        # 四维权重配置
+        'weights': {
+            'technical': 0.60,
+            'fundamental': 0.25,
+            'sentiment': 0.10,
+            'industry': 0.05
+        }
     }
 
     def __init__(self):
@@ -176,6 +205,17 @@ def init_config():
     Config.validate_config()
     
     print("配置初始化完成")
+
+def get_strategy_config(strategy_name: str):
+    """
+    根据策略名称获取对应的配置字典
+    """
+    if strategy_name == 'technical':
+        return config.TECHNICAL_STRATEGY_CONFIG
+    elif strategy_name == 'comprehensive':
+        return config.COMPREHENSIVE_STRATEGY_CONFIG
+    else:
+        raise ValueError(f"未知的策略名称: {strategy_name}")
 
 if __name__ == "__main__":
     init_config() 

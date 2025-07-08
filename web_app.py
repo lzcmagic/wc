@@ -13,8 +13,8 @@ import json
 from datetime import datetime, timedelta
 
 # 导入新的策略化结构
-from strategies.technical_strategy import TechnicalStrategy
-from strategies.comprehensive_strategy import ComprehensiveStrategy
+from strategies.technical_strategy import TechnicalStrategySelector
+from strategies.comprehensive_strategy import ComprehensiveStrategySelector
 from core.config import config
 
 # 初始化Flask应用
@@ -23,8 +23,8 @@ app.secret_key = config.WEB_CONFIG['secret_key']
 
 # 策略映射
 STRATEGY_MAP = {
-    'technical': TechnicalStrategy,
-    'comprehensive': ComprehensiveStrategy,
+    'technical': TechnicalStrategySelector,
+    'comprehensive': ComprehensiveStrategySelector,
 }
 
 @app.route('/')

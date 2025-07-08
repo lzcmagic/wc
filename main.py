@@ -10,13 +10,13 @@ import time
 from datetime import datetime
 
 # 动态导入策略
-from strategies.technical_strategy import TechnicalStrategy
-from strategies.comprehensive_strategy import ComprehensiveStrategy
+from strategies.technical_strategy import TechnicalStrategySelector
+from strategies.comprehensive_strategy import ComprehensiveStrategySelector
 
 # 策略注册表
 STRATEGY_MAP = {
-    'technical': TechnicalStrategy,
-    'comprehensive': ComprehensiveStrategy
+    'technical': TechnicalStrategySelector,
+    'comprehensive': ComprehensiveStrategySelector
 }
 
 def run_selection(strategy_name):

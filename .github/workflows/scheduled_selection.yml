@@ -13,53 +13,57 @@ on:
 jobs:
   run-scheduled-selection:
     runs-on: ubuntu-latest
-    
+    strategy:
+      matrix:
+        # 定义策略矩阵，这两个任务将会并行执行
+        strategy: [technical, comprehensive]
+      fail-fast: false # 即使一个策略失败，其他策略也继续运行
+
     steps:
       # 第一步：检出仓库代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # 第二步：设置 Python 环境
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11' # 升级到更新、更快的Python版本
 
-      # 第三步：从源码编译并安装 TA-Lib
-      - name: Build and Install TA-Lib from Source
-        run: |
-          # 安装编译所需的依赖
-          sudo apt-get update
-          sudo apt-get install -y wget build-essential
-          # 下载 TA-Lib 源码
-          wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-          # 解压并安装
-          tar -xzf ta-lib-0.4.0-src.tar.gz
-          cd ta-lib/
-          ./configure --prefix=/usr
-          make
-          sudo make install
+      # 缓存pip依赖，加速后续运行
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      # 第四步：安装 Python 依赖
+      # 第三步：安装 Python 依赖
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 第五步：运行选股脚本 (使用功能更强的 comprehensive 策略)
-      - name: Run stock selection script
-        run: python main.py select --strategy comprehensive
+      # 第四步：根据矩阵中的策略名称运行选股脚本
+      - name: Run stock selection for ${{ matrix.strategy }}
+        run: python main.py select --strategy ${{ matrix.strategy }}
 
-      # 第六步：自动提交结果文件
+  # 单独创建一个job来处理提交，确保所有策略都运行完毕后再提交
+  commit-results:
+    needs: run-scheduled-selection # 依赖于选股任务
+    runs-on: ubuntu-latest
+    # 仅在主分支的定时任务或手动触发时执行
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Commit and push results
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "feat(automation): 自动更新每日选股结果"
-          commit_options: '--no-verify'
-          # 指定要提交的文件在哪个目录
+          commit_message: "feat(auto): 更新每日选股结果"
           file_pattern: 'results/*.json'
-          repository: .
-          # 配置提交者信息
           commit_user_name: GitHub Actions Bot
-          commit_user_email: actions@github.com
-          commit_author: GitHub Actions Bot <actions@github.com> 
+          commit_user_email: actions@github.com 

@@ -196,6 +196,33 @@ class StockDataFetcher:
             print(f"❌ 获取 {date_str} 的价格失败: {e}")
             return {}
 
+    @lru_cache(maxsize=256)
+    def get_fundamental_data(self, stock_code: str) -> dict:
+        """
+        获取单个股票的核心基本面数据 (PE, PB, ROE).
+        使用 lru_cache 缓存结果以提高性能。
+        """
+        try:
+            # akshare的这个接口可以提供非常详细的财务指标
+            df = ak.stock_financial_analysis_indicator(symbol=stock_code)
+            if df.empty:
+                return {}
+
+            # 我们通常关心最新的季报或年报数据，这里取第一行
+            latest_data = df.iloc[0]
+
+            return {
+                # 市盈率(TTM)
+                'pe_ttm': latest_data.get('市盈率(TTM)', np.nan),
+                # 市净率
+                'pb': latest_data.get('市净率', np.nan),
+                # 净资产收益率(ROE)
+                'roe': latest_data.get('净资产收益率(加权)', np.nan)
+            }
+        except Exception as e:
+            print(f"❌ 获取 {stock_code} 基本面数据失败: {e}")
+            return {}
+
 # 测试代码
 if __name__ == "__main__":
     fetcher = StockDataFetcher()
@@ -212,4 +239,14 @@ if __name__ == "__main__":
     # 测试获取股票信息
     print("\n正在获取股票信息...")
     info = fetcher.get_stock_info('000001')
-    print(info) 
+    print(info)
+
+    # 测试获取基本面数据
+    print("\n正在获取平安银行基本面数据...")
+    fundamentals = fetcher.get_fundamental_data('000001')
+    if fundamentals:
+        print(f"PE(TTM): {fundamentals.get('pe_ttm')}")
+        print(f"PB: {fundamentals.get('pb')}")
+        print(f"ROE: {fundamentals.get('roe')}")
+    else:
+        print("获取基本面数据失败") 

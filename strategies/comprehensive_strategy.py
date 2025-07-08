@@ -1,173 +1,145 @@
+import pandas as pd
+import numpy as np
+import time
+from datetime import datetime
+
 from core.base_selector import BaseSelector
-from core.config import config
-from core.indicators import (
-    TechnicalIndicators,
-    FundamentalAnalyzer,
-    MarketSentimentAnalyzer,
-    IndustryAnalyzer
-)
+from data_fetcher import StockDataFetcher
+from core.indicators import StockScorer
+from core.config import get_strategy_config
 
-class ComprehensiveStrategy(BaseSelector):
+class ComprehensiveStrategySelector(BaseSelector):
     """
-    四维综合分析选股策略 (技术面、基本面、市场情绪、行业)。
-    - 继承 BaseSelector。
-    - 实现更严格的候选股初筛逻辑。
-    - 实现多维度、更复杂的评分逻辑。
+    四维综合选股策略
+    - 结合技术面、基本面、市场情绪和行业分析，进行综合评分。
+    - 旨在更全面地评估股票，平衡收益与风险。
     """
-    def __init__(self):
-        super().__init__('comprehensive')
+    def __init__(self, strategy_name='comprehensive'):
+        super().__init__(strategy_name)
+        self.fetcher = StockDataFetcher()
+        self.scorer = StockScorer()
+        self.config = get_strategy_config(strategy_name)
+        self.weights = self.config['weights']
 
-    def _apply_strategy(self, data):
-        """
-        应用四维共振综合策略为单只股票评分。
-        :param data: 包含指标的DataFrame
-        :return: (score, reasons) 元组
-        """
+    def _calculate_fundamental_score(self, stock_code: str) -> (float, list):
+        """计算单只股票的基本面评分"""
         score = 0
         reasons = []
-        latest = data.iloc[-1]
+        filters = self.config['fundamental_filters']
+        
+        f_data = self.fetcher.get_fundamental_data(stock_code)
+        if not f_data:
+            return 0, ["数据缺失"]
 
-        # 1. 趋势维度 (30分)
-        if latest['SMA_5'] > latest['SMA_10'] > latest['SMA_20'] > latest['SMA_60']:
-            score += 30
-            reasons.append("趋势多头")
+        pe = f_data.get('pe_ttm', np.inf)
+        roe = f_data.get('roe', -np.inf)
+        pb = f_data.get('pb', np.inf)
 
-        # 2. 成交量维度 (30分)
-        if latest['VOL_5'] > latest['VOL_60']:
-            score += 15
-            reasons.append("近期放量")
-        if latest['volume'] > data['volume'].rolling(5).mean().iloc[-1] * 1.5:
-             score += 15
-             reasons.append("当日放量")
+        # 1. PE估值评分
+        if 0 < pe <= filters['max_pe_ttm']:
+            score += 40
+            reasons.append(f"PE({pe:.1f})合理")
+        elif pe > filters['max_pe_ttm']:
+             reasons.append(f"PE({pe:.1f})过高")
 
-        # 3. 动能维度 (20分)
-        if latest['MACD_12_26_9'] > latest['MACDs_12_26_9'] and latest['RSI_14'] > 50:
+
+        # 2. ROE盈利能力评分
+        if roe >= filters['min_roe']:
+            score += 40
+            reasons.append(f"ROE({roe:.1f}%)较高")
+        else:
+            reasons.append(f"ROE({roe:.1f}%)较低")
+
+        # 3. PB估值评分
+        if 0 < pb <= filters['max_pb']:
             score += 20
-            reasons.append("动能向好(MACD>Signal, RSI>50)")
-
-        # 4. 波动维度 (20分)
-        if latest['BB_WIDTH'] > data['BB_WIDTH'].rolling(20).mean().iloc[-1]:
-            score += 10
-            reasons.append("波动放大")
-        if latest['ATR_14'] > data['ATR_14'].rolling(20).mean().iloc[-1]:
-            score += 10
-            reasons.append("振幅增加")
-            
+            reasons.append(f"PB({pb:.1f})合理")
+        
         return score, reasons
 
-    def _get_candidate_stocks(self):
-        """
-        根据增强版配置进行更严格的初步筛选。
-        """
-        print("🔎 正在执行[四维综合策略]的候选股初筛...")
-        
-        try:
-            all_stocks = self.fetcher.get_stock_list()
-            if all_stocks.empty:
-                return []
-            
-            print(f"✅ 获取到 {len(all_stocks)} 只A股。")
-            
-            filter_cfg = self.config.get('filter', {})
-            max_market_cap = filter_cfg.get('max_market_cap', 200 * 100000000) # 默认为200亿
-            
-            candidates = all_stocks[all_stocks['market_cap'] <= max_market_cap].copy()
-            candidates = candidates[~candidates['name'].str.contains('ST|退|N')]
-            
-            print(f"初筛后剩余 {len(candidates)} 只股票，将进入多维度评分环节...")
-            return candidates.to_dict('records')
-            
-        except Exception as e:
-            print(f"❌ 在[四维综合策略]初筛过程中发生错误: {e}")
-            return []
+    def _calculate_sentiment_score(self, stock_code: str) -> (float, list):
+        """(占位) 计算市场情绪评分"""
+        # 此处未来可以接入舆情分析、投资者情绪指数等
+        return 70, ["情绪稳定(占位)"]
 
-    def _score_stocks(self, candidate_stocks):
-        """
-        为候选股计算四维综合得分。
-        """
-        print("📊 正在为候选股计算四维综合得分...")
-        scored_stocks = []
-        
-        filter_cfg = self.config.get('filter', {})
-        weights = self.config.get('scorer_weights', {})
-        min_score_req = filter_cfg.get('min_score', 0)
+    def _calculate_industry_score(self, stock_code: str) -> (float, list):
+        """(占位) 计算行业评分"""
+        # 此处未来可以接入行业轮动、赛道前景等分析
+        return 75, ["行业中性(占位)"]
 
-        for idx, stock in enumerate(candidate_stocks):
-            print(f"  -> 正在分析 {stock['name']} ({stock['code']}) [{idx+1}/{len(candidate_stocks)}]")
-            
-            try:
-                hist_data = self.fetcher.get_stock_data(stock['code'], period=filter_cfg.get('analysis_period', 90))
-                if hist_data.empty or len(hist_data) < 60:
-                    continue
-
-                # --- 1. 技术面评分 ---
-                tech_score = self._calculate_technical_score(hist_data, weights)
-                
-                # --- 2. 基本面评分 ---
-                fin_data = self.fundamental_analyzer.get_financial_data(stock['code'])
-                # 基本面硬性筛选
-                if fin_data.get('pe_ratio', 999) > filter_cfg.get('max_pe', 999) or \
-                   fin_data.get('roe', -1) < filter_cfg.get('min_roe', -1):
-                   print(f"     - ✖️ 基本面不达标 (PE或ROE)，跳过。")
-                   continue
-                fundamental_score, _ = self.fundamental_analyzer.score_fundamentals(fin_data)
-
-                # --- 3. 市场情绪评分 ---
-                sentiment_score = self._calculate_sentiment_score(hist_data)
-                
-                # --- 4. 行业评分 ---
-                industry_score, _ = self.industry_analyzer.get_industry_strength(stock['code'])
-
-                # --- 综合总分 ---
-                total_score = (tech_score * weights.get('technical_total', 0.6) +
-                               fundamental_score * weights.get('fundamental_total', 0.25) +
-                               sentiment_score * weights.get('sentiment_total', 0.10) +
-                               industry_score * weights.get('industry_total', 0.05))
-
-                if total_score >= min_score_req:
-                    stock_info = {
-                        'code': stock['code'],
-                        'name': stock['name'],
-                        'score': round(total_score, 1),
-                        'reasons': [f"技术分:{tech_score:.0f}", f"基本面分:{fundamental_score:.0f}", f"情绪分:{sentiment_score:.0f}", f"行业分:{industry_score:.0f}"],
-                        'current_price': hist_data['close'].iloc[-1],
-                        'market_cap': stock['market_cap'],
-                    }
-                    scored_stocks.append(stock_info)
-                    print(f"     - ✔️ 综合得分: {total_score:.1f}，符合要求。")
-                else:
-                    print(f"     - ✖️ 综合得分: {total_score:.1f}，不符合要求。")
-                
-                self._rate_limit_delay()
-
-            except Exception as e:
-                print(f"     - ❌ 分析 {stock['name']} 时出错: {e}")
+    def _filter_and_score_stocks(self, stock_list, for_date=None):
+        """对筛选后的股票进行四维评分"""
+        final_results = []
+        for idx, stock in enumerate(stock_list):
+            print(f"  分析: {stock['name']} ({stock['code']}) [{idx + 1}/{len(stock_list)}]")
+            stock_data = self.fetcher.get_stock_data(stock['code'], self.config['analysis_period'], end_date=for_date)
+            if stock_data.empty:
                 continue
-        
-        return scored_stocks
 
-    def _calculate_technical_score(self, data, weights):
-        # 这是一个简化的例子，实际可以更复杂
-        score = 0
-        # ... 此处省略调用 self.tech_indicators 计算各项技术指标并加权求和的详细代码 ...
-        # 假设我们简单地给予一个基于RSI和OBV的分数
-        rsi = self.tech_indicators.calculate_rsi(data['close'])
-        obv = self.tech_indicators.calculate_obv(data['close'], data['volume'])
-        
-        if not rsi.empty and rsi.iloc[-1] < 50:
-            score += 40
-        if not obv.empty and obv.iloc[-1] > obv.iloc[-10:].mean():
-            score += 60
-        return score
+            tech_score, tech_reasons = self.scorer.calculate_score(stock_data), self.scorer.get_signal_reasons(stock_data)
+            funda_score, funda_reasons = self._calculate_fundamental_score(stock['code'])
+            senti_score, senti_reasons = self._calculate_sentiment_score(stock['code'])
+            ind_score, ind_reasons = self._calculate_industry_score(stock['code'])
 
-    def _calculate_sentiment_score(self, data):
-        # 同样是简化例子
-        price_mom = self.sentiment_analyzer.calculate_price_momentum(data['close'])
-        vol_score = self.sentiment_analyzer.calculate_volatility_score(data['close'])
+            total_score = (tech_score * self.weights['technical'] +
+                           funda_score * self.weights['fundamental'] +
+                           senti_score * self.weights['sentiment'] +
+                           ind_score * self.weights['industry'])
+            
+            if total_score >= self.config['min_score']:
+                result = {
+                    'code': stock['code'],
+                    'name': stock['name'],
+                    'score': round(total_score, 1),
+                    'reasons': tech_reasons + funda_reasons,
+                    'details': {
+                        'tech_score': round(tech_score,1),
+                        'funda_score': round(funda_score,1),
+                        'senti_score': round(senti_score,1),
+                        'ind_score': round(ind_score,1),
+                    }
+                }
+                if not stock_data.empty:
+                    result['current_price'] = round(stock_data['close'].iloc[-1], 2)
+
+                final_results.append(result)
+                print(f"    => 总分: {total_score:.1f} (入选)")
+            else:
+                print(f"    => 总分: {total_score:.1f} (低于阈值)")
+            
+            time.sleep(self.config.get('api_call_delay', 0.2))
+        return final_results
+
+    def run_selection(self, all_stocks=None, for_date=None):
+        """执行四维综合选股策略"""
+        if for_date:
+            print(f"\n--- [综合策略] 回测日期: {for_date.strftime('%Y-%m-%d')} ---")
+        else:
+            print(f"\n{'='*20} 开始执行四维综合分析策略 {'='*20}")
+
+        start_time = datetime.now()
+
+        # 1. 获取股票池
+        stock_list_df = all_stocks if all_stocks is not None else self.fetcher.get_stock_list()
+        if stock_list_df.empty:
+            print("错误：无法获取股票列表。")
+            return []
         
-        score = 0
-        if not price_mom.empty and price_mom.iloc[-1] > 0:
-            score += 50
-        if not vol_score.empty and vol_score.iloc[-1] > 60: # 波动率较低
-            score += 50
-        return score 
+        # 2. 基础筛选
+        # (这里的筛选逻辑可以根据综合策略的需求定制，暂时从简)
+        filtered_stocks = stock_list_df[~stock_list_df['name'].str.contains('ST|退|N')].copy()
+        filtered_stocks = filtered_stocks[filtered_stocks['market_cap'] >= self.config['min_market_cap']]
+        
+        # 3. 评分
+        final_results = self._filter_and_score_stocks(filtered_stocks.to_dict('records'), for_date=for_date)
+
+        # 4. 排序和输出
+        top_stocks = sorted(final_results, key=lambda x: x['score'], reverse=True)[:self.config['max_stocks']]
+        
+        if not for_date:
+            self.save_results(top_stocks, self.config)
+            self.print_results(top_stocks)
+            end_time = datetime.now()
+            print(f"策略执行完毕，总耗时: {end_time - start_time}")
+
+        return top_stocks 
