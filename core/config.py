@@ -49,9 +49,22 @@ class Config:
     # --- 策略默认配置 ---
     # 策略1: 纯技术分析策略 (原基础版)
     TECHNICAL_STRATEGY_CONFIG = {
+        'strategy_name': 'technical',
+        'display_name': '技术分析策略',
+        
+        # 基础运行参数
         'period': 60,
+        'analysis_period': 60,              # 添加 analysis_period
         'top_n': 10,
-        'max_market_cap': 200 * 100000000,
+        'max_stocks': 10,                   # 添加 max_stocks
+        
+        # 基础筛选条件
+        'min_market_cap': 5000000000,       # 添加 min_market_cap (50亿)
+        'max_market_cap': 200 * 100000000,  # 保持原有 max_market_cap
+        'max_recent_gain': 30,              # 添加 max_recent_gain
+        'min_score': 60,                    # 添加 min_score
+        
+        # 技术指标配置
         'indicators': [
             {"kind": "sma", "length": 5},
             {"kind": "sma", "length": 10},
@@ -59,7 +72,14 @@ class Config:
             {"kind": "macd"},
             {"kind": "rsi"},
             {"kind": "kdj"}
-        ]
+        ],
+        
+        # API调用控制
+        'api_call_delay': 0.1,
+        'sample_size': 100,
+        'max_filtered_stocks': 50,
+        'min_data_days': 30,
+        'recent_gain_days': 30
     }
     
     # 策略2: 四维综合分析策略 (原增强版)
@@ -109,6 +129,20 @@ class Config:
             'industry': 0.05
         }
     }
+
+    @staticmethod
+    def create_directories():
+        """创建必要的目录"""
+        dirs = ['cache', 'results', 'logs']
+        for dir_name in dirs:
+            if not os.path.exists(dir_name):
+                os.makedirs(dir_name)
+                print(f"创建目录: {dir_name}")
+
+    @staticmethod
+    def validate_config():
+        """验证配置完整性"""
+        print("配置验证完成")
 
     def __init__(self):
         self.load_user_config()
