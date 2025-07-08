@@ -61,7 +61,7 @@ jobs:
           cat > user_config.py << EOF
           EMAIL_CONFIG = {
               'enabled': True,
-              'smtp_server': 'smtp.gmail.com',
+              'smtp_server': 'smtp.qq.com',
               'smtp_port': 587,
               'username': '${{ secrets.EMAIL_USERNAME }}',
               'password': '${{ secrets.EMAIL_PASSWORD }}',

@@ -5,15 +5,15 @@
 
 from core.email_sender import send_notification_email
 
-# 测试配置 - 尝试SSL连接
+# 测试配置 - QQ邮箱
 test_config = {
     'enabled': True,
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 465,  # 使用SSL端口
-    'username': 'l1396448080@gmail.com',  # 发送邮箱
-    'password': 'ypaq jhgn cgqn ejba',    # Gmail应用密码
+    'smtp_server': 'smtp.qq.com',
+    'smtp_port': 587,  # 使用TLS端口
+    'username': '844497109@qq.com',  # 发送邮箱
+    'password': 'ktnuezzpjgvsbbee',    # QQ邮箱授权码
     'to_email': '844497109@qq.com',       # 接收邮箱
-    'use_tls': False,  # SSL模式下不使用TLS
+    'use_tls': True,  # 使用TLS加密
     'subject_template': '📈 测试邮件 - {date}'
 }
 
