@@ -59,6 +59,9 @@ class BaseSelector:
         # 3. 排序和选择
         final_selection = self._filter_and_sort(scored_stocks)
 
+        # 4. 获取实时数据并丰富结果
+        final_selection = self._enrich_results_with_realtime_data(final_selection)
+
         print(f"✅ 成功选出 {len(final_selection)} 只股票。")
         self.save_results(final_selection, for_date)
         self.print_results(final_selection, for_date)
@@ -89,9 +92,12 @@ class BaseSelector:
         # 将股票代码添加到DataFrame中，以便后续步骤（如综合策略）可以使用
         stock_data['code_in_df'] = stock_code
 
-        stock_data_with_indicators = calculate_indicators(stock_data, self.config['indicators'])
+        # --- 移除重复的指标计算 ---
+        # 指标计算的责任完全交给具体的策略类中的 _apply_strategy 方法，
+        # 这也解决了 comprehensive 策略因为缺少 'indicators' 键而导致的 KeyError。
+        # stock_data_with_indicators = calculate_indicators(stock_data, self.config.get('indicators', []))
         
-        score, reasons = self._apply_strategy(stock_data_with_indicators)
+        score, reasons = self._apply_strategy(stock_data)
 
         if score > 0:
             return {
@@ -100,6 +106,7 @@ class BaseSelector:
                 'score': score,
                 'reasons': reasons,
                 'price': stock_data.iloc[-1]['close'],
+                'change_pct': stock_data.iloc[-1].get('change_pct', 0.0),
                 'market_cap': market_cap
             }
         return None
@@ -171,23 +178,96 @@ class BaseSelector:
         print(f"\n选股结果已保存至: {filename}")
 
     def print_results(self, results, for_date=None):
-        """在控制台打印选股结果"""
-        date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
+        """将选股结果打印到控制台"""
         if not results:
-            print(f"\n在 {date_str} 未选出任何股票。")
             return
+            
+        date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
         
-        print(f"\n📊 [{self.strategy_name}] 策略选股结果 - {date_str}")
-        print("="*80)
-        print(f"{'代码':<10}{'名称':<10}{'得分':<8}{'价格':<10}{'市值(亿)':<12}{'推荐理由'}")
-        print("-"*80)
-        for stock in results:
+        try:
+            from rich.console import Console
+            from rich.table import Table
+        except ImportError:
+            print("请安装 'rich' 库 (`pip install rich`) 以获得更好的表格输出效果。")
+            self._print_results_fallback(results, date_str)
+            return
+
+        table = Table(title=f"策略选股结果 ({date_str})", show_header=True, header_style="bold magenta")
+        table.add_column("序号", style="dim", width=4)
+        table.add_column("代码", justify="left")
+        table.add_column("名称", justify="left")
+        table.add_column("得分", justify="right")
+        table.add_column("价格", justify="right")
+        table.add_column("涨跌幅", justify="right")
+        table.add_column("市值(亿)", justify="right")
+        table.add_column("推荐理由", justify="left", min_width=30)
+
+        for i, stock in enumerate(results, 1):
             market_cap_in_bil = stock.get('market_cap', 0) / 1e8
-            print(f"{stock['code']:<10}{stock['name']:<10}{stock['score']:<8}"
-                  f"{stock.get('price', 0):<10.2f}{market_cap_in_bil:<12.2f}{' | '.join(stock['reasons'])}")
-        print("="*80)
+            change_pct = stock.get('change_pct', 0)
+            
+            # 根据涨跌幅设置颜色
+            if change_pct > 0:
+                change_style = "bold red"
+                change_str = f"+{change_pct:.2f}%"
+            elif change_pct < 0:
+                change_style = "bold green"
+                change_str = f"{change_pct:.2f}%"
+            else:
+                change_style = ""
+                change_str = "0.00%"
+
+            table.add_row(
+                str(i),
+                stock['code'],
+                stock['name'],
+                f"{stock['score']:.2f}",
+                f"{stock.get('price', 0):.2f}",
+                f"[{change_style}]{change_str}[/{change_style}]",
+                f"{market_cap_in_bil:.1f}",
+                ' | '.join(stock['reasons'])
+            )
+
+        console = Console()
+        console.print(table)
+        console.print("⚠️  [bold yellow]风险提示[/bold yellow]: 本结果仅为量化分析，不构成投资建议。")
+
+    def _print_results_fallback(self, results, date_str):
+        """在没有 rich 库时的备用打印方法"""
+        print(f"\n📊 [{self.strategy_name}] 策略选股结果 - {date_str}")
+        print("="*100)
+        print(f"{'序号':<4}{'代码':<10}{'名称':<10}{'得分':<8}{'价格':<10}{'涨跌幅':<10}{'市值(亿)':<12}{'推荐理由'}")
+        print("-"*100)
+        for i, stock in enumerate(results, 1):
+            market_cap_in_bil = stock.get('market_cap', 0) / 1e8
+            change_pct_str = f"{stock.get('change_pct', 0):+.2f}%"
+            print(f"{i:<4}{stock['code']:<10}{stock['name']:<10}{stock['score']:<8.2f}"
+                  f"{stock.get('price', 0):<10.2f}{change_pct_str:<10}{market_cap_in_bil:<12.1f}"
+                  f"{' | '.join(stock['reasons'])}")
+        print("="*100)
         print("⚠️  风险提示: 本结果仅为量化分析，不构成投资建议。")
 
     def _rate_limit_delay(self):
         """简单的请求延迟，避免过于频繁地请求API"""
-        time.sleep(self.fetcher.config.get('request_delay', 0.1)) 
+        time.sleep(self.fetcher.config.get('request_delay', 0.1))
+
+    def _enrich_results_with_realtime_data(self, final_selection):
+        """使用实时行情数据丰富最终结果"""
+        if not final_selection:
+            return []
+            
+        print("\n enriching results with real time data...")
+        stock_codes = [s['code'] for s in final_selection]
+        realtime_quotes = self.fetcher.get_realtime_quotes(stock_codes)
+        
+        if not realtime_quotes:
+            print("   - 实时行情获取失败，部分数据将使用旧数据。")
+            return final_selection
+
+        for stock in final_selection:
+            quote = realtime_quotes.get(stock['code'])
+            if quote:
+                stock['price'] = quote.get('price', stock['price'])
+                stock['change_pct'] = quote.get('change_pct', stock.get('change_pct', 0))
+        
+        return final_selection 

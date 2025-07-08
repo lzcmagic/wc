@@ -10,6 +10,9 @@ from datetime import datetime, timedelta
 import time
 from functools import lru_cache, wraps
 import functools
+import os
+import requests
+from requests import sessions
 
 class StockDataFetcher:
     def __init__(self, config=None):
@@ -55,12 +58,12 @@ class StockDataFetcher:
             after_st_filter_count = len(df)
             print(f"   - 排除ST和退市股后剩余: {after_st_filter_count} 只")
 
-            # 2. 筛选总市值在30亿到500亿之间的股票
-            market_cap_min = 30 * 10**8
-            market_cap_max = 500 * 10**8
+            # 2. 筛选总市值在30亿到300亿之间的股票 (修正单位问题)
+            market_cap_min = 30 * 100000000  # 30亿
+            market_cap_max = 300 * 100000000 # 300亿
             df = df[df['总市值'].between(market_cap_min, market_cap_max)]
             after_cap_filter_count = len(df)
-            print(f"   - 市值筛选 (30亿-500亿) 后剩余: {after_cap_filter_count} 只")
+            print(f"   - 市值筛选 (30亿-300亿) 后剩余: {after_cap_filter_count} 只")
 
             df = df[['代码', '名称', '总市值', '流通市值']].copy()
             df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
@@ -173,6 +176,33 @@ class StockDataFetcher:
             print(f"获取股票 {stock_code} 市值失败: {e}")
             return {'market_cap': 0, 'circulation_market_cap': 0}
     
+    def get_realtime_quotes(self, stock_codes: list) -> dict:
+        """
+        获取一批股票的实时行情快照。
+        返回一个字典，key是股票代码，value是包含价格、涨跌幅等信息的字典。
+        """
+        if not stock_codes:
+            return {}
+        
+        print(f"   - 正在获取 {len(stock_codes)} 只股票的实时行情...")
+        try:
+            df = ak.stock_zh_a_spot_em(symbol=",".join(stock_codes))
+            if df.empty:
+                return {}
+            
+            # 将数据处理成 {code: {price: val, change_pct: val}} 的格式
+            quotes = {}
+            for _, row in df.iterrows():
+                code = str(row['代码'])
+                quotes[code] = {
+                    'price': row['最新价'],
+                    'change_pct': row['涨跌幅']
+                }
+            return quotes
+        except Exception as e:
+            print(f"❌ 获取实时行情失败: {e}")
+            return {}
+
     def filter_stocks(self, stock_list, min_market_cap=5000000000):
         """
         基础股票过滤

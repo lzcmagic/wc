@@ -72,7 +72,7 @@ jobs:
 
       # 第五步：发送邮件通知
       - name: Send email notification for ${{ matrix.strategy }}
-        if: success() && matrix.strategy == 'comprehensive' # 只对综合策略发送邮件，避免重复
+        if: success() # 只要任务成功就发送邮件
         timeout-minutes: 5  # 邮件发送超时5分钟
         env:
           EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED || 'true' }}
