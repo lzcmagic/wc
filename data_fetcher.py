@@ -8,7 +8,42 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import time
-from functools import lru_cache
+from functools import lru_cache, wraps
+import functools
+
+def retry(max_retries=3, delay=3, exceptions=(Exception,)):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(1, max_retries + 1):
+                try:
+                    result = func(*args, **kwargs)
+                    # 如果成功获取到数据，直接返回
+                    if result is not None and (not hasattr(result, 'empty') or not result.empty):
+                        return result
+                    # 如果返回空数据，也重试
+                    if attempt < max_retries:
+                        print(f"⚠️ 第{attempt}次尝试返回空数据，重试中...")
+                        time.sleep(delay)
+                except exceptions as e:
+                    print(f"⚠️ 第{attempt}次尝试失败: {e}")
+                    if attempt < max_retries:
+                        print(f"   等待 {delay} 秒后重试...")
+                        time.sleep(delay)
+                    else:
+                        print(f"❌ {func.__name__} 多次重试后依然失败，返回空结果。")
+            
+            # 所有重试都失败后，返回空结果
+            if func.__name__.startswith('get_') and 'data' in func.__name__:
+                return pd.DataFrame()
+            elif func.__name__.startswith('get_') and 'info' in func.__name__:
+                return {}
+            elif func.__name__.startswith('get_') and 'market_cap' in func.__name__:
+                return {'market_cap': 0, 'circulation_market_cap': 0}
+            else:
+                return None
+        return wrapper
+    return decorator
 
 class StockDataFetcher:
     def __init__(self, config=None):
@@ -30,7 +65,7 @@ class StockDataFetcher:
             print(f"❌ 获取交易日历失败: {e}")
             return pd.date_range(start=start_date, end=end_date, freq='B').tolist()
 
-    @lru_cache(maxsize=1)
+    @retry(max_retries=3, delay=5)
     def get_all_stocks_with_market_cap(self):
         """
         获取当前所有A股的列表及其市值信息。此函数应在回测开始时调用一次。
@@ -49,8 +84,8 @@ class StockDataFetcher:
         except Exception as e:
             print(f"❌ 获取全量A股列表失败: {e}")
             return pd.DataFrame()
-
-    @lru_cache(maxsize=512)
+    
+    @retry(max_retries=3, delay=5)
     def get_stock_data(self, stock_code, period=120, end_date=None):
         """
         获取股票历史数据
@@ -67,8 +102,8 @@ class StockDataFetcher:
 
         try:
             df = ak.stock_zh_a_hist(
-                symbol=stock_code,
-                period="daily",
+                    symbol=stock_code,
+                    period="daily",
                 start_date=start_date.strftime('%Y%m%d'),
                 end_date=end_date.strftime('%Y%m%d'),
                 adjust="qfq"  # 前复权
@@ -80,7 +115,8 @@ class StockDataFetcher:
         except Exception as e:
             print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
             return pd.DataFrame()
-            
+    
+    @retry(max_retries=3, delay=5)
     def get_stock_info(self, stock_code):
         """获取股票基本信息"""
         try:
@@ -106,6 +142,7 @@ class StockDataFetcher:
             print(f"获取股票 {stock_code} 信息失败: {e}")
             return {}
     
+    @retry(max_retries=3, delay=5)
     def get_market_cap(self, stock_code):
         """获取股票市值信息"""
         try:
@@ -196,7 +233,7 @@ class StockDataFetcher:
             print(f"❌ 获取 {date_str} 的价格失败: {e}")
             return {}
 
-    @lru_cache(maxsize=256)
+    @retry(max_retries=3, delay=5)
     def get_fundamental_data(self, stock_code: str) -> dict:
         """
         获取单个股票的核心基本面数据 (PE, PB, ROE).
@@ -239,7 +276,7 @@ if __name__ == "__main__":
     # 测试获取股票信息
     print("\n正在获取股票信息...")
     info = fetcher.get_stock_info('000001')
-    print(info)
+    print(info) 
 
     # 测试获取基本面数据
     print("\n正在获取平安银行基本面数据...")

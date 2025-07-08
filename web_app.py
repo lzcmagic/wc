@@ -135,20 +135,20 @@ def create_templates_if_not_exist():
                             {% endfor %}
                         </ul>
                     </div>
-                </div>
-            </div>
         </div>
-
+        </div>
+        </div>
+        
         {% if results and results.stocks %}
             <div class="row row-cols-1 row-cols-md-2 g-4">
-            {% for stock in results.stocks %}
+                {% for stock in results.stocks %}
                 <div class="col">
                     <div class="card h-100 stock-card top-{{ loop.index }}">
                         <div class="card-body">
                             <h5 class="card-title d-flex justify-content-between">
                                 <span>
-                                    {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}#{{ loop.index }}{% endif %}
-                                    {{ stock.name }} ({{ stock.code }})
+                            {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}#{{ loop.index }}{% endif %}
+                            {{ stock.name }} ({{ stock.code }})
                                 </span>
                                 <span class="badge bg-primary rounded-pill">{{ stock.score }}/100</span>
                             </h5>
@@ -162,7 +162,7 @@ def create_templates_if_not_exist():
                         </div>
                     </div>
                 </div>
-            {% endfor %}
+                {% endfor %}
             </div>
         {% else %}
             <div class="alert alert-warning" role="alert">
@@ -170,34 +170,34 @@ def create_templates_if_not_exist():
                 <p>今日使用 [{{ current_strategy }}] 策略暂未筛选出符合条件的股票。您可以尝试执行选股或切换策略查看。</p>
             </div>
         {% endif %}
-
+        
         <footer class="pt-3 mt-4 text-muted border-top">
             ⚠️ 风险提示: 本平台仅提供数据分析工具，不构成任何投资建议。股市有风险，投资需谨慎。
         </footer>
     </div>
-
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function runSelection() {
             alert('将在后台执行 [{{ current_strategy }}] 策略，请稍后刷新页面查看结果。');
-            fetch('/api/run_selection', {
-                method: 'POST',
+                fetch('/api/run_selection', {
+                    method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ strategy: '{{ current_strategy }}' })
-            })
-            .then(response => response.json())
-            .then(data => {
+                })
+                .then(response => response.json())
+                .then(data => {
                 if (!data.success) {
-                    alert('执行失败: ' + data.error);
-                }
-            });
+                        alert('执行失败: ' + data.error);
+                    }
+                });
         }
     </script>
 </body>
 </html>
 """
         with open(dashboard_path, 'w', encoding='utf-8') as f:
-            f.write(dashboard_template)
+        f.write(dashboard_template)
         print(f"✅ 创建了新的 dashboard.html 模板。")
 
 if __name__ == '__main__':

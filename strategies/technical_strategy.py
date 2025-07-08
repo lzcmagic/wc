@@ -28,7 +28,7 @@ class TechnicalStrategySelector(BaseSelector):
         filtered_stocks = []
         
         try:
-            market_data = self.fetcher.get_stock_list()
+            market_data = self.fetcher.get_all_stocks_with_market_cap()
             if market_data.empty:
                 print("错误：无法获取股票列表进行筛选。")
                 return []
@@ -136,7 +136,7 @@ class TechnicalStrategySelector(BaseSelector):
         
         # 1. 基础筛选
         # 在回测模式下，我们使用传入的股票池，否则实时获取
-        stock_list = all_stocks if all_stocks is not None else self.fetcher.get_stock_list()
+        stock_list = all_stocks if all_stocks is not None else self.fetcher.get_all_stocks_with_market_cap()
         filtered_list = self._filter_basic_criteria(stock_list)
         if not filtered_list:
             print("没有股票通过基础筛选，策略执行结束。")

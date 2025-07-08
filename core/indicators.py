@@ -13,25 +13,25 @@ if not hasattr(np, 'NaN'):
 
 class TechnicalIndicators:
     """封装各类技术指标的计算"""
-
+    
     @staticmethod
     def calculate_macd(close_prices, fast=12, slow=26, signal=9):
         macd_line = ta.macd(close_prices, fast=fast, slow=slow, signal=signal)
         if macd_line is None or macd_line.empty:
             return pd.DataFrame()
         return macd_line.iloc[:, 0]
-
+    
     @staticmethod
     def calculate_rsi(close_prices, period=14):
         return ta.rsi(close_prices, length=period)
-
+    
     @staticmethod
     def calculate_kdj(high_prices, low_prices, close_prices, n=9, m1=3, m2=3):
         """计算KDJ指标"""
         kdj_df = ta.kdj(high_prices, low_prices, close_prices, length=n, signal=m1)
         # pandas-ta returns K, D, J - we might need to adjust based on usage
         return kdj_df
-
+    
     @staticmethod
     def calculate_bollinger_bands(close_prices, period=20, std_dev=2):
         """计算布林带"""
@@ -41,7 +41,7 @@ class TechnicalIndicators:
     def calculate_atr(high, low, close, period=14):
         """计算真实波动范围 (ATR)"""
         return ta.atr(high, low, close, length=period)
-
+    
     @staticmethod
     def calculate_adx(high, low, close, period=14):
         """计算平均趋向指数 (ADX) - 趋势强度指标"""
@@ -53,7 +53,7 @@ class TechnicalIndicators:
         plus_di = adx_df.iloc[:, 1]
         minus_di = adx_df.iloc[:, 2]
         return adx_series, plus_di, minus_di
-
+    
     @staticmethod
     def calculate_williams_r(high, low, close, period=14):
         """计算威廉指标 %R"""
@@ -63,7 +63,7 @@ class TechnicalIndicators:
     def calculate_cci(high, low, close, period=20):
         """计算顺势指标 (CCI)"""
         return ta.cci(high, low, close, length=period)
-
+    
     @staticmethod
     def calculate_trix(close, period=14):
         """计算TRIX指标 - 三重指数平滑移动平均"""
@@ -77,7 +77,7 @@ class TechnicalIndicators:
 
 class StockScorer:
     """根据技术指标为股票打分"""
-
+    
     def __init__(self):
         self.weights = {
             'macd': 0.25,
@@ -240,7 +240,7 @@ class FundamentalAnalyzer:
             elif pe < 10:
                 score += 15
                 reasons.append("PE估值偏低")
-        
+            
         # PB估值评分 (0-15分)
         pb = financial_data.get('pb_ratio')
         if pb:

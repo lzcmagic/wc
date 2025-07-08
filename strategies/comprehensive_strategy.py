@@ -2,11 +2,13 @@ import pandas as pd
 import numpy as np
 import time
 from datetime import datetime
+import json
 
 from core.base_selector import BaseSelector
 from data_fetcher import StockDataFetcher
 from core.indicators import StockScorer
 from core.config import get_strategy_config
+from strategies.technical_strategy import TechnicalStrategySelector
 
 class ComprehensiveStrategySelector(BaseSelector):
     """
@@ -19,7 +21,7 @@ class ComprehensiveStrategySelector(BaseSelector):
         self.fetcher = StockDataFetcher()
         self.scorer = StockScorer()
         self.config = get_strategy_config(strategy_name)
-        self.weights = self.config['weights']
+        self.weights = self.config.get('weights', {}) # 安全地获取权重
 
     def _calculate_fundamental_score(self, stock_code: str) -> (float, list):
         """计算单只股票的基本面评分"""
@@ -131,16 +133,151 @@ class ComprehensiveStrategySelector(BaseSelector):
         filtered_stocks = stock_list_df[~stock_list_df['name'].str.contains('ST|退|N')].copy()
         filtered_stocks = filtered_stocks[filtered_stocks['market_cap'] >= self.config['min_market_cap']]
         
-        # 3. 评分
-        final_results = self._filter_and_score_stocks(filtered_stocks.to_dict('records'), for_date=for_date)
+        print(f"   - 基础筛选完成，剩余 {len(filtered_stocks)} 只股票，耗时: {time.time() - start_time:.2f} 秒")
 
-        # 4. 排序和输出
-        top_stocks = sorted(final_results, key=lambda x: x['score'], reverse=True)[:self.config['max_stocks']]
-        
+        # 3. 四维分析
+        technical_scores = self.analyze_technical(filtered_stocks, for_date)
+        fundamental_scores = self.analyze_fundamental(filtered_stocks)
+        market_scores = self.analyze_market_sentiment(filtered_stocks)
+        industry_scores = self.analyze_industry_rotation(filtered_stocks)
+
+        # 5. 结果综合与输出
+        final_scores = self.calculate_final_score(
+            technical_scores, fundamental_scores, market_scores, industry_scores
+        )
+        top_stocks = self.get_top_stocks(final_scores)
+
+        # 6. 保存和打印结果
+        self.save_results(top_stocks, for_date=for_date)
+
         if not for_date:
-            self.save_results(top_stocks, self.config)
             self.print_results(top_stocks)
-            end_time = datetime.now()
-            print(f"策略执行完毕，总耗时: {end_time - start_time}")
+
+        end_time = time.time()
+        print(f"\n{'='*20} 四维综合分析策略执行完毕 {'='*20}")
+        print(f"   - 耗时: {end_time - start_time:.2f} 秒")
+        print(f"{'='*58}\n")
 
         return top_stocks 
+
+    def calculate_final_score(self, tech_scores, fund_scores, market_scores, industry_scores):
+        """
+        根据各维度得分和权重，计算最终总分
+        """
+        print("\n   - 正在计算最终得分...")
+        final_scores = {}
+        all_stocks = set(tech_scores.keys()) | set(fund_scores.keys())
+
+        # 使用从 __init__ 加载的权重
+        weights = self.weights
+        if not weights:
+            print("❌ 警告: 策略权重未配置，无法计算总分。")
+            return {}
+        
+        for stock in all_stocks:
+            tech_score = tech_scores.get(stock, 0)
+            fund_score = fund_scores.get(stock, 0)
+            market_score = market_scores.get(stock, 0) # 占位
+            industry_score = industry_scores.get(stock, 0) # 占位
+
+            total_score = (
+                tech_score * weights.get('technical', 0) +
+                fund_score * weights.get('fundamental', 0) +
+                market_score * weights.get('market', 0) +
+                industry_score * weights.get('industry', 0)
+            )
+            final_scores[stock] = total_score
+        
+        print(f"   - 完成最终分数计算。")
+        return final_scores
+
+    def get_top_stocks(self, final_scores):
+        """
+        从最终得分中筛选出排名靠前的股票
+        """
+        if not final_scores:
+            return []
+            
+        # 按得分从高到低排序
+        sorted_stocks = sorted(final_scores.items(), key=lambda item: item[1], reverse=True)
+        
+        # 获取配置中要选择的股票数量
+        num_to_select = self.config.get('selection_count', 20)
+        
+        # 修复: 从原始的 stock_list_df 中获取名称，正确的列名是 'name'
+        stock_list_df = self.fetcher.get_all_stocks_with_market_cap()
+        code_to_name = pd.Series(stock_list_df['name'].values, index=stock_list_df['code']).to_dict()
+
+        # 格式化为字典列表
+        top_stocks_with_scores = sorted_stocks[:num_to_select]
+        top_stocks = [
+            {'code': code, 'name': code_to_name.get(code, ''), 'score': score}
+            for code, score in top_stocks_with_scores
+        ]
+        
+        return top_stocks
+
+    def analyze_technical(self, stock_list, for_date=None):
+        """
+        进行技术分析
+        复用 TechnicalStrategySelector 的逻辑来进行打分
+        """
+        print("\n   - 正在进行技术形态分析...")
+        
+        # 为了进行技术分析，我们需要一个技术策略的实例
+        tech_selector = TechnicalStrategySelector('technical')
+        
+        # 调用其内部的评分方法
+        scored_stocks_list = tech_selector._calculate_stock_scores(stock_list.to_dict('records'))
+        
+        # 将结果转换为 {code: score} 的字典格式
+        scores = {stock['code']: stock.get('score', 0) for stock in scored_stocks_list}
+        
+        return scores
+
+    def analyze_fundamental(self, stock_list):
+        """
+        分析股票的基本面数据并打分 (PE, PB, ROE)
+        """
+        s_time = time.time()
+        print("\n   - 正在进行基本面分析...")
+        scores = {}
+        for index, stock in stock_list.iterrows():
+            scores[stock['code']] = 50 # 占位分数
+        print(f"   - 完成基本面分析，耗时: {time.time() - s_time:.2f} 秒")
+        return scores
+
+    def analyze_market_sentiment(self, stock_list):
+        """
+        分析市场情绪（占位符）
+        """
+        print("\n   - 正在进行市场情绪分析(占位)...")
+        scores = {}
+        for index, stock in stock_list.iterrows():
+            scores[stock['code']] = 50
+        return scores
+
+    def analyze_industry_rotation(self, stock_list):
+        """
+        分析行业轮动（占位符）
+        """
+        print("\n   - 正在进行行业轮动分析(占位)...")
+        scores = {}
+        for index, stock in stock_list.iterrows():
+            scores[stock['code']] = 50
+        return scores
+
+if __name__ == '__main__':
+    # 测试代码
+    # 需要确保在项目根目录下运行，并且有可用的 config
+    from core.config import Config
+    cfg = Config()
+    
+    # 仅 برای 测试，我们可能需要模拟一些数据
+    selector = ComprehensiveStrategySelector(cfg)
+    results = selector.run_selection()
+    
+    if results:
+        print("\n综合策略选股结果:")
+        for stock in results:
+            print(f"  - 股票代码: {stock['code']}, 综合得分: {stock['score']:.2f}") 

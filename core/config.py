@@ -12,7 +12,7 @@ class Config:
     APP_NAME = "A股智能选股系统"
     VERSION = "3.0.0"
     DEBUG = True
-
+    
     # --- Web界面配置 ---
     WEB_CONFIG = {
         'secret_key': os.urandom(24)
@@ -37,7 +37,7 @@ class Config:
         'use_tls': True,
         'subject_template': '📈 每日选股推荐 - {date}',
     }
-
+    
     # --- 默认定时任务配置 ---
     SCHEDULE_CONFIG = {
         'enabled': True,
@@ -45,7 +45,7 @@ class Config:
         'weekdays_only': True,
         'timezone': 'Asia/Shanghai'
     }
-
+    
     # --- 策略默认配置 ---
     # 策略1: 纯技术分析策略 (原基础版)
     TECHNICAL_STRATEGY_CONFIG = {
@@ -61,7 +61,7 @@ class Config:
             {"kind": "kdj"}
         ]
     }
-
+    
     # 策略2: 四维综合分析策略 (原增强版)
     COMPREHENSIVE_STRATEGY_CONFIG = {
         'strategy_name': 'comprehensive',
@@ -144,7 +144,7 @@ class Config:
             print("ℹ️ 未找到 `user_config.py`，将使用系统默认配置。")
         except Exception as e:
             print(f"❌ 加载用户配置 `user_config.py` 时出错: {e}")
-
+        
 # 全局配置实例
 config = Config()
 
