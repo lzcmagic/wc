@@ -111,9 +111,9 @@ class StockDataFetcher:
             df.columns = ['date', 'open', 'close', 'high', 'low', 'volume', 'turnover', 'amplitude', 'change_pct', 'change_amount', 'turnover_rate']
             df['date'] = pd.to_datetime(df['日期'])
             return df
-        except Exception as e:
+            except Exception as e:
             print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
-            return pd.DataFrame()
+        return pd.DataFrame()
     
     @retry(max_retries=3, delay=5)
     def get_stock_info(self, stock_code):

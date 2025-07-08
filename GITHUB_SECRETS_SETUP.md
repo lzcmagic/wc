@@ -101,7 +101,26 @@ EMAIL_PASSWORD: ktnuezzpjgvsbbee
 EMAIL_TO: l1396448080@gmail.com
 ```
 
-### 8. 故障排除
+### 8. 配置文件格式
+
+GitHub Actions会自动创建`user_config.py`文件，格式如下：
+
+```python
+USER_CONFIG = {
+    'EMAIL_CONFIG': {
+        'enabled': True,
+        'smtp_server': 'smtp.qq.com',
+        'smtp_port': 465,
+        'username': '${{ secrets.EMAIL_USERNAME }}',
+        'password': '${{ secrets.EMAIL_PASSWORD }}',
+        'to_email': '${{ secrets.EMAIL_TO }}',
+        'use_tls': False,
+        'subject_template': '📈 每日选股推荐 - {date}'
+    }
+}
+```
+
+### 9. 故障排除
 
 如果遇到问题，请按以下顺序检查：
 
@@ -110,8 +129,9 @@ EMAIL_TO: l1396448080@gmail.com
 3. ✅ 授权码是否正确且未过期
 4. ✅ 网络连接是否正常
 5. ✅ 邮箱地址格式是否正确
+6. ✅ user_config.py文件格式是否正确
 
-### 9. 联系支持
+### 10. 联系支持
 
 如果问题仍然存在，请：
 1. 查看GitHub Actions的详细日志

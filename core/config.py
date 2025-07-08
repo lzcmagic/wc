@@ -142,7 +142,7 @@ class Config:
 
         except ImportError:
             print("ℹ️ 未找到 `user_config.py`，将使用系统默认配置。")
-        except Exception as e:
+            except Exception as e:
             print(f"❌ 加载用户配置 `user_config.py` 时出错: {e}")
         
 # 全局配置实例

@@ -34,7 +34,7 @@ def run_backtest(strategy_name, start_date, end_date):
 
     if strategy_name not in STRATEGY_MAP:
         print(f"错误：未知的策略 '{strategy_name}'。可用策略: {list(STRATEGY_MAP.keys())}")
-        return
+            return
         
     strategy_class = STRATEGY_MAP[strategy_name]
     strategy_instance = strategy_class()
@@ -50,7 +50,7 @@ def schedule_job(strategy_name, run_time_str):
     """根据配置定时执行任务"""
     if strategy_name not in STRATEGY_MAP:
         print(f"❌ 错误: 无法为未知策略 '{strategy_name}' 设置定时任务。")
-        return
+            return
         
     print(f"⏰ 已设置定时任务，将在每日 {run_time_str} 使用 [{strategy_name}] 策略执行选股。")
     print("   (按 Ctrl+C 停止)")
@@ -58,8 +58,8 @@ def schedule_job(strategy_name, run_time_str):
     # 使用 schedule 库设置每日任务
     schedule.every().day.at(run_time_str).do(run_selection, strategy_name=strategy_name)
 
-    while True:
-        schedule.run_pending()
+            while True:
+                schedule.run_pending()
         time.sleep(1)
 
 def main():

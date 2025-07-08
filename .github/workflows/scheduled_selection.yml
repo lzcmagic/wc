@@ -64,15 +64,17 @@ jobs:
         run: |
           # 创建临时的邮件配置文件
           cat > user_config.py << EOF
-          EMAIL_CONFIG = {
-              'enabled': True,
-              'smtp_server': 'smtp.qq.com',
-              'smtp_port': 465,  # 使用SSL端口465
-              'username': '${{ secrets.EMAIL_USERNAME }}',
-              'password': '${{ secrets.EMAIL_PASSWORD }}',
-              'to_email': '${{ secrets.EMAIL_TO }}',
-              'use_tls': False,  # SSL模式下不使用TLS
-              'subject_template': '📈 每日选股推荐 - {date}'
+          USER_CONFIG = {
+              'EMAIL_CONFIG': {
+                  'enabled': True,
+                  'smtp_server': 'smtp.qq.com',
+                  'smtp_port': 465,  # 使用SSL端口465
+                  'username': '${{ secrets.EMAIL_USERNAME }}',
+                  'password': '${{ secrets.EMAIL_PASSWORD }}',
+                  'to_email': '${{ secrets.EMAIL_TO }}',
+                  'use_tls': False,  # SSL模式下不使用TLS
+                  'subject_template': '📈 每日选股推荐 - {date}'
+              }
           }
           EOF
           
