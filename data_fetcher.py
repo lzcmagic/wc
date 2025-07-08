@@ -32,9 +32,8 @@ def retry(max_retries=3, delay=3, exceptions=(Exception,)):
                         time.sleep(delay)
                     else:
                         print(f"❌ {func.__name__} 多次重试后依然失败，返回空结果。")
-            
             # 所有重试都失败后，返回空结果
-            if func.__name__.startswith('get_') and 'data' in func.__name__:
+            if func.__name__ == 'get_all_stocks_with_market_cap' or (func.__name__.startswith('get_') and 'data' in func.__name__):
                 return pd.DataFrame()
             elif func.__name__.startswith('get_') and 'info' in func.__name__:
                 return {}
