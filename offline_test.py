@@ -41,16 +41,8 @@ def create_dummy_results(strategy: str) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     results_file = f"results/{strategy}_selection_{today}.json"
 
-    payload = {
-        "stocks": DUMMY_STOCKS,
-        "summary": {
-            "avg_score": round(sum(s["score"] for s in DUMMY_STOCKS) / len(DUMMY_STOCKS), 2),
-            "total": len(DUMMY_STOCKS)
-        }
-    }
-
     with open(results_file, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(DUMMY_STOCKS, f, ensure_ascii=False, indent=2)
 
     print(f"✅ 已生成示例结果文件: {results_file}")
     return results_file
