@@ -183,16 +183,20 @@ class StockDataFetcher:
         """
         if not stock_codes:
             return {}
-        
+
         print(f"   - 正在获取 {len(stock_codes)} 只股票的实时行情...")
         try:
-            df = ak.stock_zh_a_spot_em(symbol=",".join(stock_codes))
+            # ak.stock_zh_a_spot_em() 不接受symbol参数，获取全部股票数据然后筛选
+            df = ak.stock_zh_a_spot_em()
             if df.empty:
                 return {}
-            
+
+            # 筛选出我们需要的股票
+            df_filtered = df[df['代码'].isin(stock_codes)]
+
             # 将数据处理成 {code: {price: val, change_pct: val}} 的格式
             quotes = {}
-            for _, row in df.iterrows():
+            for _, row in df_filtered.iterrows():
                 code = str(row['代码'])
                 quotes[code] = {
                     'price': row['最新价'],

@@ -144,7 +144,8 @@ class WxPusherClient:
                 code = stock.get('code', 'N/A')
                 name = stock.get('name', 'N/A')
                 score = stock.get('score', 0)
-                current_price = stock.get('current_price', 0)
+                # 兼容两种字段名：price 和 current_price
+                current_price = stock.get('price', stock.get('current_price', 0))
                 change_pct = stock.get('change_pct', 0)
                 
                 # 涨跌颜色
