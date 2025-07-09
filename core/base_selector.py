@@ -136,11 +136,12 @@ class BaseSelector:
         """为候选股票评分 (并发版本)"""
         results = []
         total = len(candidate_stocks)
+        success_count = 0
         # 从配置或默认值获取并发线程数
         max_workers = self.config.get('max_workers', 10)
 
         print(f"\n使用 {max_workers} 个线程，为 {total} 只候选股票进行并发评分...")
-        
+
         # 将DataFrame转换为字典列表以便传递给并发任务
         tasks = [row for index, row in candidate_stocks.iterrows()]
 
@@ -150,12 +151,22 @@ class BaseSelector:
                 # 使用 functools.partial 来固定 for_date 参数
                 from functools import partial
                 score_func = partial(self._score_single_stock, for_date=for_date)
-                
+
                 # executor.map 会按顺序返回结果
                 for result in executor.map(score_func, tasks):
                     if result:
                         results.append(result)
+                        success_count += 1
                     pbar.update(1) # 每次完成一个任务（无论成功失败）都更新进度条
+
+        # 显示数据获取统计
+        failed_count = total - success_count
+        success_rate = (success_count / total * 100) if total > 0 else 0
+        print(f"\n📊 数据获取统计:")
+        print(f"   - 总计: {total} 只股票")
+        print(f"   - 成功: {success_count} 只 ({success_rate:.1f}%)")
+        if failed_count > 0:
+            print(f"   - 失败: {failed_count} 只 (网络连接问题，已跳过)")
 
         return results
 

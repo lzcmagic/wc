@@ -16,8 +16,8 @@ from requests import sessions
 
 class StockDataFetcher:
     def __init__(self, config=None):
-        self.max_retries = 3
-        self.retry_delay = 1
+        # 移除重试机制，使用更长的请求间隔
+        self.request_delay = 0.2  # 增加到200ms间隔
         self.headers = {
             'User-Agent': 'Mozilla/5.0 ...'
         }
@@ -82,7 +82,8 @@ class StockDataFetcher:
     def get_stock_data(self, stock_code, period=120, end_date=None):
         """
         获取股票历史数据，并健壮地处理列名不匹配的问题。
-        
+        移除重试机制以提高处理速度，失败的股票直接跳过。
+
         Args:
             stock_code: 股票代码，如 '000001'
             period: 获取天数，默认120天
@@ -90,10 +91,13 @@ class StockDataFetcher:
         """
         if end_date is None:
             end_date = datetime.now()
-        
+
         start_date = end_date - timedelta(days=period * 1.5) # 获取更多数据以计算指标
 
         try:
+            # 添加请求间隔，避免频繁调用API
+            time.sleep(self.request_delay)
+
             df = ak.stock_zh_a_hist(
                 symbol=stock_code,
                 period="daily",
@@ -127,8 +131,9 @@ class StockDataFetcher:
 
             # 4. 类型转换
             df['date'] = pd.to_datetime(df['date'])
-            
+
             return df
+
         except Exception as e:
             print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
             return pd.DataFrame()
@@ -254,8 +259,8 @@ class StockDataFetcher:
             if len(filtered_stocks) >= 50:
                 break
                 
-            # 避免请求过于频繁
-            time.sleep(0.1)
+            # 避免请求过于频繁，使用统一的延迟时间
+            time.sleep(self.request_delay)
         
         return pd.DataFrame(filtered_stocks)
 
