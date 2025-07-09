@@ -59,6 +59,16 @@ def api_run_selection():
         return jsonify({'success': False, 'error': '无效的策略名称'}), 400
 
     try:
+        # 先做一次快速数据源可用性检查（如无法获取股票列表则立即返回错误提示）
+        from data_fetcher import StockDataFetcher
+        try:
+            test_fetcher = StockDataFetcher()
+            test_df = test_fetcher.get_all_stocks_with_market_cap()
+            if test_df is None or test_df.empty:
+                return jsonify({'success': False, 'error': '无法获取股票列表，可能是网络或数据源问题。请稍后重试。'}), 500
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'数据源检查失败: {str(e)}'}), 500
+
         # 在后台线程中执行选股，防止阻塞
         import threading
         def run_async():
