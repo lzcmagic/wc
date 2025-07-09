@@ -70,17 +70,25 @@ class StockDataFetcher:
             original_count = len(df)
             print(f"   - 获取到 {original_count} 只股票，开始进行市值和状态筛选...")
 
-            # 1. 筛选掉ST、*ST和退市股 (名称中包含'ST'或'退')
-            df = df[~df['名称'].str.contains('ST|退', na=False)]
+            # 1. 筛选掉ST、*ST、退市股和科创板、创业板风险股
+            df = df[~df['名称'].str.contains('ST|退|N |C ', na=False)]  # 排除新股和次新股
+            df = df[~df['代码'].str.startswith(('688', '300'))]  # 排除科创板和创业板
             after_st_filter_count = len(df)
-            print(f"   - 排除ST和退市股后剩余: {after_st_filter_count} 只")
+            print(f"   - 排除ST、退市股、新股、科创板、创业板后剩余: {after_st_filter_count} 只")
 
-            # 2. 筛选总市值在30亿到300亿之间的股票 (修正单位问题)
-            market_cap_min = 30 * 100000000  # 30亿
-            market_cap_max = 300 * 100000000 # 300亿
+            # 2. 筛选总市值在50亿到200亿之间的股票 (提高门槛，聚焦优质股票)
+            market_cap_min = 50 * 100000000  # 50亿 (提高最低门槛)
+            market_cap_max = 200 * 100000000 # 200亿 (降低上限，避免超大盘股)
             df = df[df['总市值'].between(market_cap_min, market_cap_max)]
             after_cap_filter_count = len(df)
-            print(f"   - 市值筛选 (30亿-300亿) 后剩余: {after_cap_filter_count} 只")
+            print(f"   - 市值筛选 (50亿-200亿) 后剩余: {after_cap_filter_count} 只")
+
+            # 3. 筛选成交量活跃的股票 (排除成交量过低的股票)
+            if '成交量' in df.columns:
+                volume_threshold = df['成交量'].quantile(0.3)  # 保留成交量前70%的股票
+                df = df[df['成交量'] >= volume_threshold]
+                after_volume_filter_count = len(df)
+                print(f"   - 成交量筛选后剩余: {after_volume_filter_count} 只")
 
             df = df[['代码', '名称', '总市值', '流通市值']].copy()
             df.columns = ['code', 'name', 'total_market_cap', 'market_cap']

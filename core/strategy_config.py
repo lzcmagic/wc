@@ -19,11 +19,11 @@ class StrategyConfig:
         'top_n': 10,
         'max_stocks': 10,
         
-        # 基础筛选条件
-        'min_market_cap': 3000000000,       # 50亿
-        'max_market_cap': 200 * 100000000,  # 200亿
-        'max_recent_gain': 30,              # 30%
-        'min_score': 60,                    # 最低评分60分
+        # 基础筛选条件 (优化：提高门槛，减少候选股票数量)
+        'min_market_cap': 5000000000,       # 50亿 (提高最低市值要求)
+        'max_market_cap': 150 * 100000000,  # 150亿 (降低上限，聚焦中盘股)
+        'max_recent_gain': 20,              # 20% (降低涨幅限制，排除过热股票)
+        'min_score': 65,                    # 最低评分65分 (提高评分门槛)
         
         # 技术指标配置
         'indicators': [
@@ -38,8 +38,8 @@ class StrategyConfig:
         # API调用控制
         'api_call_delay': 1.0,  # 增加到1秒，减少API压力
         'max_workers': 8,       # 减少并发线程数，配合更长的延迟
-        'sample_size': 100,
-        'max_filtered_stocks': 50,
+        'sample_size': 80,              # 减少采样数量
+        'max_filtered_stocks': 30,      # 减少候选股票数量
         'min_data_days': 30,
         'recent_gain_days': 30
     }
@@ -53,10 +53,11 @@ class StrategyConfig:
         'analysis_period': 90,
         'max_stocks': 8,
 
-        # 基础筛选条件
-        'min_market_cap': 8000000000,    # 80亿市值
-        'max_recent_gain': 25,           # 近期最大涨幅25%
-        'min_score': 75,                 # 最低总评分75
+        # 基础筛选条件 (优化：进一步提高门槛)
+        'min_market_cap': 8000000000,    # 80亿市值 (保持高门槛)
+        'max_market_cap': 120 * 100000000, # 120亿 (添加上限，聚焦中大盘股)
+        'max_recent_gain': 20,           # 近期最大涨幅20% (降低涨幅限制)
+        'min_score': 78,                 # 最低总评分78 (提高评分门槛)
 
         # 1. 技术面分析配置
         'technical_indicators': [
