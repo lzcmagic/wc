@@ -10,6 +10,7 @@ import concurrent.futures
 from data_fetcher import StockDataFetcher
 from core.config import config
 from core.indicators import calculate_indicators
+from core.wxpusher_sender import wxpusher_sender
 
 class BaseSelector:
     """
@@ -65,6 +66,10 @@ class BaseSelector:
         print(f"✅ 成功选出 {len(final_selection)} 只股票。")
         self.save_results(final_selection, for_date)
         self.print_results(final_selection, for_date)
+
+        # 发送WxPusher微信通知
+        self._send_wxpusher_notification(final_selection, for_date)
+
         return final_selection
 
     def _filter_by_market_cap(self, df):
@@ -192,6 +197,25 @@ class BaseSelector:
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=4)
         print(f"\n选股结果已保存至: {filename}")
+
+    def _send_wxpusher_notification(self, results, for_date=None):
+        """发送WxPusher微信通知"""
+        try:
+            if wxpusher_sender.is_enabled():
+                date_str = (for_date or datetime.now()).strftime('%Y-%m-%d')
+                success = wxpusher_sender.send_stock_selection_notification(
+                    stocks=results,
+                    strategy_name=self.strategy_name,
+                    date=date_str
+                )
+                if success:
+                    print("📱 WxPusher微信通知发送成功")
+                else:
+                    print("❌ WxPusher微信通知发送失败")
+            else:
+                print("📱 WxPusher未启用，跳过微信通知")
+        except Exception as e:
+            print(f"❌ 发送WxPusher通知时出错: {e}")
 
     def print_results(self, results, for_date=None):
         """将选股结果打印到控制台"""

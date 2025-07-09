@@ -29,11 +29,7 @@ class Config:
         'rate_limit_per_minute': 60,
     }
 
-    # --- 邮件配置 (从环境配置获取) ---
-    @property
-    def EMAIL_CONFIG(self):
-        """动态获取邮件配置"""
-        return env_config.get_email_config()
+
     
     # --- 定时任务配置 (从策略配置获取) ---
     @property
@@ -91,19 +87,7 @@ class Config:
 # 全局配置实例
 config = Config()
 
-# 用户配置模板
-USER_CONFIG_TEMPLATE = '''"""
-用户自定义配置文件
-复制此文件为 user_config.py 并修改相应配置
-"""
 
-# 邮件通知配置
-EMAIL_CONFIG = {
-    'enabled': True,  # 开启邮件通知
-    'username': 'your_email@gmail.com',     # 发送邮箱
-    'password': 'your_app_password',        # 邮箱应用密码
-    'to_email': 'your_email@gmail.com',     # 接收邮箱
-}
 
 # 选股参数调整
 STOCK_FILTER = {

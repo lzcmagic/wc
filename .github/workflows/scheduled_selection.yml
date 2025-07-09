@@ -70,43 +70,14 @@ jobs:
           echo "📊 检查结果文件..."
           ls -la results/ || echo "⚠️ results目录不存在"
 
-      # 第五步：发送邮件通知
-      - name: Send email notification for ${{ matrix.strategy }}
-        if: success() # 只要任务成功就发送邮件
-        timeout-minutes: 5  # 邮件发送超时5分钟
-        env:
-          EMAIL_ENABLED: ${{ secrets.EMAIL_ENABLED || 'true' }}
-          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER || 'smtp.qq.com' }}
-          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT || '465' }}
-          EMAIL_USE_TLS: ${{ secrets.EMAIL_USE_TLS || 'false' }}
-          EMAIL_USERNAME: ${{ secrets.EMAIL_USERNAME }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          EMAIL_SUBJECT_TEMPLATE: ${{ secrets.EMAIL_SUBJECT_TEMPLATE || '📈 每日选股推荐 - {date}' }}
+      # 第五步：发送微信推送通知
+      - name: Send WxPusher notification for ${{ matrix.strategy }}
+        if: success() # 只要任务成功就发送推送
+        timeout-minutes: 5  # 推送发送超时5分钟
         run: |
-          # 检查邮件配置
-          echo "📧 检查邮件配置..."
-          if [ -z "$EMAIL_USERNAME" ] || [ -z "$EMAIL_PASSWORD" ] || [ -z "$EMAIL_TO" ]; then
-            echo "❌ 邮件配置不完整，跳过邮件发送"
-            exit 0
-          fi
-          
-          # 测试新配置系统
-          echo "🔧 测试新配置系统..."
-          python -c "
-          from core.env_config import env_config
-          env_config.print_config_status()
-          
-          if env_config.validate_email_config():
-              print('✅ 邮件配置验证通过')
-          else:
-              print('❌ 邮件配置验证失败')
-              exit(1)
-          "
-          
-          # 发送邮件通知
-          echo "📧 开始发送邮件通知..."
-          python send_email_notification.py ${{ matrix.strategy }}
+          # 发送微信推送通知
+          echo "📱 开始发送微信推送通知..."
+          python send_wxpush_notification.py ${{ matrix.strategy }}
 
       # 第六步：上传结果文件
       - name: Upload results for ${{ matrix.strategy }}

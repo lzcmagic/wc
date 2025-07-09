@@ -4,7 +4,7 @@ Offline Test Script
 -------------------
 在不调用任何外部股票数据 API 的情况下：
 1. 生成示例选股结果 JSON 文件
-2. 调用 send_email_notification 测试邮件功能
+2. 调用 WxPusher 测试微信推送功能
 3. 用于 GitHub Actions 环境验证
 不影响线上真实功能。
 """
@@ -12,8 +12,7 @@ Offline Test Script
 import os
 import json
 from datetime import datetime
-from core.email_sender import send_notification_email
-from core.env_config import env_config
+from core.wxpusher_sender import WxPusherSender
 
 DUMMY_STOCKS = [
     {
@@ -52,16 +51,28 @@ def main():
     strategy = os.environ.get("TEST_STRATEGY", "comprehensive")
     results_path = create_dummy_results(strategy)
 
-    email_config = env_config.get_email_config()
-    if not env_config.validate_email_config():
-        print("❌ 邮件配置无效，跳过邮件发送")
+    # 初始化WxPusher发送器
+    sender = WxPusherSender()
+    if not sender.is_enabled():
+        print("❌ WxPusher未启用，跳过微信推送")
         return
 
-    success = send_notification_email(strategy, results_path, email_config)
+    # 读取生成的测试数据
+    with open(results_path, 'r', encoding='utf-8') as f:
+        stocks = json.load(f)
+
+    # 发送微信推送
+    today = datetime.now().strftime('%Y-%m-%d')
+    success = sender.send_stock_selection_notification(
+        stocks=stocks,
+        strategy_name=strategy,
+        date=today
+    )
+
     if success:
-        print("🎉 邮件发送成功！")
+        print("🎉 微信推送发送成功！")
     else:
-        print("⚠️ 邮件发送失败！")
+        print("⚠️ 微信推送发送失败！")
 
 
 if __name__ == "__main__":

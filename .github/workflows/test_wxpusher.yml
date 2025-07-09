@@ -1,0 +1,45 @@
+name: 测试微信推送
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-wxpusher:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test WxPusher notification
+        run: |
+          echo "🔍 测试WxPusher微信推送..."
+          
+          # 创建测试结果文件
+          mkdir -p results
+          cat > results/test.json << EOF
+          [
+              {
+                  "code": "000001",
+                  "name": "平安银行",
+                  "score": 85.5,
+                  "price": 12.34,
+                  "market_cap": 1234.5,
+                  "reasons": ["技术指标优秀", "基本面良好"]
+              }
+          ]
+          EOF
+          
+          # 测试微信推送发送
+          echo "📱 开始测试微信推送..."
+          python send_wxpush_notification.py comprehensive results/test.json

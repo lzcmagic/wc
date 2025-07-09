@@ -6,7 +6,7 @@
 ## 技术栈
 - **后端**: Python + Flask + AkShare
 - **配置管理**: 环境变量 + .env 文件
-- **部署**: GitHub Actions + 邮件通知
+- **部署**: GitHub Actions + 微信推送通知
 
 ## 核心功能
 1. 🔍 智能选股系统
@@ -14,6 +14,7 @@
 3. 💼 投资组合管理
 4. ⚡ 实时行情推送
 5. 📈 策略回测功能
+6. 📱 微信推送通知 (WxPusher)
 
 ## 🚀 快速开始
 
@@ -30,16 +31,15 @@ pip install -r requirements.txt
 ### 2. 配置环境
 ```bash
 # 复制环境配置模板
-cp env.example .env
+cp .env.example .env
 
-# 编辑 .env 文件，填入你的邮箱配置
-EMAIL_ENABLED=true
-EMAIL_SMTP_SERVER=smtp.gmail.com
-EMAIL_SMTP_PORT=587
-EMAIL_USE_TLS=true
-EMAIL_USERNAME=your_email@gmail.com
-EMAIL_PASSWORD=your_app_password
-EMAIL_TO=your_email@gmail.com
+# 编辑 .env 文件，配置微信推送
+# 微信推送配置
+WXPUSHER_ENABLED=true
+WXPUSHER_APP_TOKEN=AT_your_token    # WxPusher应用TOKEN
+WXPUSHER_TOPIC_IDS=41366           # 推送主题ID
+# 或使用极简推送
+WXPUSHER_SPT=SPT_your_token        # 极简推送token
 ```
 
 ### 3. 本地测试
@@ -52,12 +52,9 @@ python web_app.py
 ```
 
 ### 4. GitHub Actions 配置
-在 GitHub 仓库设置中添加以下 Secrets：
-- `EMAIL_USERNAME`: 发送邮箱地址
-- `EMAIL_PASSWORD`: 邮箱应用密码
-- `EMAIL_TO`: 接收邮箱地址
+GitHub Actions已配置为使用硬编码的WxPusher配置，无需额外设置。
 
-详细配置说明请查看 [配置指南](config_guide.md)
+详细配置说明请查看 [WxPusher配置指南](WxPusher配置指南.md)
 
 ## 📋 选股策略
 
@@ -73,23 +70,27 @@ python web_app.py
 
 ## 🔧 配置说明
 
-新的配置系统将环境配置和策略配置分离：
+配置系统说明：
 
-- **环境配置**：邮箱等敏感信息，使用 `.env` 文件或环境变量
+- **微信推送配置**：使用WxPusher进行微信推送通知
 - **策略配置**：选股参数，存储在 `core/strategy_config.py`
 
-详细说明请查看 [配置指南](config_guide.md)
+详细说明请查看 [WxPusher配置指南](WxPusher配置指南.md)
 
 ## 📈 使用方法
 
 ### 命令行
 ```bash
-# 执行选股
+# 执行选股 (自动发送邮件和微信通知)
 python main.py select --strategy technical
 python main.py select --strategy comprehensive
 
-# 发送邮件通知
-python send_email_notification.py comprehensive
+# 策略回测
+python main.py backtest --strategy technical --start 2024-01-01 --end 2024-12-31
+
+# 测试微信推送
+python main.py test-wxpusher --config  # 查看配置状态
+python main.py test-wxpusher --send    # 发送测试消息
 ```
 
 ### Web界面
@@ -97,6 +98,32 @@ python send_email_notification.py comprehensive
 python web_app.py
 # 访问 http://localhost:5000
 ```
+
+## 📱 微信推送配置
+
+本系统集成了WxPusher微信推送功能，可将选股结果直接推送到微信。
+
+### 快速配置 (极简推送)
+1. 扫描二维码获取SPT: [点击获取](https://wxpusher.zjiecode.com/api/qrcode/RwjGLMOPTYp35zSYQr0HxbCPrV9eU0wKVBXU1D5VVtya0cQXEJWPjqBdW3gKLifS.jpg)
+2. 在 `.env` 文件中配置:
+   ```bash
+   WXPUSHER_ENABLED=true
+   WXPUSHER_SPT=SPT_您的Token
+   ```
+3. 测试推送: `python main.py test-wxpusher --send`
+
+### 高级配置 (标准推送)
+1. 访问 [WxPusher管理后台](https://wxpusher.zjiecode.com/admin/)
+2. 创建应用并获取APP_TOKEN
+3. 获取用户UID
+4. 配置环境变量:
+   ```bash
+   WXPUSHER_ENABLED=true
+   WXPUSHER_APP_TOKEN=AT_您的Token
+   WXPUSHER_UIDS=UID_用户1,UID_用户2
+   ```
+
+详细配置指南请参考: [WxPusher集成指南](docs/wxpusher_guide.md)
 
 ## 法律声明
 ⚠️ 本平台仅提供数据分析工具，不构成任何投资建议。股市有风险，投资需谨慎。 

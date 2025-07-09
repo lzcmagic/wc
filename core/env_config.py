@@ -34,58 +34,74 @@ class EnvironmentConfig:
         """获取字符串类型环境变量"""
         return os.getenv(key, default)
     
-    def get_email_config(self) -> Dict[str, Any]:
-        """获取邮件配置"""
-        if 'email_config' in self._cache:
-            return self._cache['email_config']
-            
+
+
+    def get_wxpusher_config(self) -> Dict[str, Any]:
+        """获取WxPusher微信推送配置"""
+        if 'wxpusher_config' in self._cache:
+            return self._cache['wxpusher_config']
+
+        # 处理UID列表
+        uids_str = self.get_str('WXPUSHER_UIDS', '')
+        uids = [uid.strip() for uid in uids_str.split(',') if uid.strip()] if uids_str else []
+
+        # 处理主题ID列表
+        topic_ids_str = self.get_str('WXPUSHER_TOPIC_IDS', '')
+        topic_ids = []
+        if topic_ids_str:
+            for tid in topic_ids_str.split(','):
+                tid = tid.strip()
+                if tid.isdigit():
+                    topic_ids.append(int(tid))
+
         config = {
-            'enabled': self.get_bool('EMAIL_ENABLED', False),
-            'smtp_server': self.get_str('EMAIL_SMTP_SERVER', 'smtp.gmail.com'),
-            'smtp_port': self.get_int('EMAIL_SMTP_PORT', 587),
-            'use_tls': self.get_bool('EMAIL_USE_TLS', True),
-            'username': self.get_str('EMAIL_USERNAME', ''),
-            'password': self.get_str('EMAIL_PASSWORD', ''),
-            'to_email': self.get_str('EMAIL_TO', ''),
-            'subject_template': self.get_str('EMAIL_SUBJECT_TEMPLATE', '📈 每日选股推荐 - {date}'),
+            'enabled': self.get_bool('WXPUSHER_ENABLED', False),
+            'app_token': self.get_str('WXPUSHER_APP_TOKEN', ''),
+            'uids': uids,
+            'topic_ids': topic_ids,
+            'spt': self.get_str('WXPUSHER_SPT', ''),  # 极简推送token
         }
-        
+
         # 缓存配置
-        self._cache['email_config'] = config
+        self._cache['wxpusher_config'] = config
         return config
     
-    def validate_email_config(self) -> bool:
-        """验证邮件配置是否完整"""
-        config = self.get_email_config()
-        
+
+
+    def validate_wxpusher_config(self) -> bool:
+        """验证WxPusher配置是否完整"""
+        config = self.get_wxpusher_config()
+
         if not config['enabled']:
             return True  # 如果未启用，则认为配置有效
-            
-        required_fields = ['username', 'password', 'to_email']
-        missing_fields = [field for field in required_fields if not config[field]]
-        
-        if missing_fields:
-            print(f"❌ 邮件配置不完整，缺少字段: {', '.join(missing_fields)}")
+
+        # 检查APP_TOKEN
+        if not config['app_token']:
+            print("❌ WxPusher配置不完整，缺少 WXPUSHER_APP_TOKEN")
             return False
-            
+
+        # 检查是否有推送目标（UID或主题ID）
+        if not config['uids'] and not config['topic_ids']:
+            print("❌ WxPusher配置不完整，需要至少配置 WXPUSHER_UIDS 或 WXPUSHER_TOPIC_IDS")
+            return False
+
         return True
     
     def print_config_status(self):
         """打印配置状态"""
-        email_config = self.get_email_config()
-        
-        print("📧 邮件配置状态:")
-        print(f"   启用状态: {'✅ 已启用' if email_config['enabled'] else '❌ 已禁用'}")
-        print(f"   SMTP服务器: {email_config['smtp_server']}:{email_config['smtp_port']}")
-        print(f"   使用TLS: {'是' if email_config['use_tls'] else '否'}")
-        print(f"   发送邮箱: {'已配置' if email_config['username'] else '未配置'}")
-        print(f"   接收邮箱: {'已配置' if email_config['to_email'] else '未配置'}")
-        print(f"   密码: {'已配置' if email_config['password'] else '未配置'}")
-        
-        if email_config['enabled'] and not self.validate_email_config():
-            print("❌ 邮件配置不完整，请检查环境变量或 .env 文件")
-        elif email_config['enabled']:
-            print("✅ 邮件配置完整")
+        wxpusher_config = self.get_wxpusher_config()
+
+        print("📱 WxPusher微信推送配置状态:")
+        print(f"   启用状态: {'✅ 已启用' if wxpusher_config['enabled'] else '❌ 已禁用'}")
+        print(f"   APP_TOKEN: {'已配置' if wxpusher_config['app_token'] else '未配置'}")
+        print(f"   推送用户: {len(wxpusher_config['uids'])} 个UID")
+        print(f"   推送主题: {len(wxpusher_config['topic_ids'])} 个主题")
+        print(f"   极简推送: {'已配置' if wxpusher_config['spt'] else '未配置'}")
+
+        if wxpusher_config['enabled'] and not self.validate_wxpusher_config():
+            print("❌ WxPusher配置不完整，请检查环境变量或 .env 文件")
+        elif wxpusher_config['enabled']:
+            print("✅ WxPusher配置完整")
 
 # 全局环境配置实例
 env_config = EnvironmentConfig() 

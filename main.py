@@ -13,6 +13,10 @@ from datetime import datetime
 from strategies.technical_strategy import TechnicalStrategySelector
 from strategies.comprehensive_strategy import ComprehensiveStrategySelector
 
+# 导入WxPusher相关模块
+from core.wxpusher_sender import wxpusher_sender
+from core.env_config import env_config
+
 # 策略注册表
 STRATEGY_MAP = {
     'technical': TechnicalStrategySelector,
@@ -45,6 +49,34 @@ def run_backtest(strategy_name, start_date, end_date):
         end_date=end_date
     )
     engine.run()
+
+def run_wxpusher_test(show_config=False, send_test=False):
+    """运行WxPusher测试"""
+    print("🧪 WxPusher微信推送测试")
+    print("=" * 50)
+
+    if show_config or (not show_config and not send_test):
+        # 显示配置状态
+        env_config.print_config_status()
+        wxpusher_sender.print_status()
+
+    if send_test:
+        print("\n📤 发送测试消息...")
+        if wxpusher_sender.is_enabled():
+            success = wxpusher_sender.send_test_message()
+            if success:
+                print("✅ 测试消息发送成功！请检查您的微信")
+            else:
+                print("❌ 测试消息发送失败，请检查配置")
+        else:
+            print("❌ WxPusher未启用，请先配置相关环境变量")
+            print("\n📋 需要配置的环境变量:")
+            print("   WXPUSHER_ENABLED=true")
+            print("   WXPUSHER_APP_TOKEN=AT_xxx")
+            print("   WXPUSHER_UIDS=UID_xxx,UID_yyy (或)")
+            print("   WXPUSHER_TOPIC_IDS=123,456")
+            print("\n💡 或者使用极简推送:")
+            print("   WXPUSHER_SPT=SPT_xxx")
 
 def schedule_job(strategy_name, run_time_str):
     """根据配置定时执行任务"""
@@ -99,6 +131,19 @@ def main():
         help="回测结束日期 (格式: YYYY-MM-DD)"
     )
 
+    # 'test-wxpusher' 命令
+    wxpusher_parser = subparsers.add_parser('test-wxpusher', help='测试WxPusher微信推送功能')
+    wxpusher_parser.add_argument(
+        '--config',
+        action='store_true',
+        help='显示WxPusher配置状态'
+    )
+    wxpusher_parser.add_argument(
+        '--send',
+        action='store_true',
+        help='发送测试消息'
+    )
+
     args = parser.parse_args()
     
     print("=============================================")
@@ -109,6 +154,8 @@ def main():
         run_selection(args.strategy)
     elif args.command == 'backtest':
         run_backtest(args.strategy, args.start, args.end)
+    elif args.command == 'test-wxpusher':
+        run_wxpusher_test(args.config, args.send)
     elif args.command == 'schedule':
         try:
             schedule_job(args.strategy, args.time)
