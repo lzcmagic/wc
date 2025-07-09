@@ -74,6 +74,70 @@ class TechnicalIndicators:
         """计算能量潮指标 (OBV)"""
         return ta.obv(close, volume)
 
+    @staticmethod
+    def check_volume_amplification(volume_series, period=5, threshold=1.5):
+        """
+        检查成交量是否放大
+
+        Args:
+            volume_series: 成交量序列
+            period: 比较周期，默认5天
+            threshold: 放大倍数阈值，默认1.5倍
+
+        Returns:
+            bool: 是否成交量放大
+        """
+        if len(volume_series) < period + 1:
+            return False
+
+        try:
+            # 计算最近一天的成交量与前period天平均成交量的比值
+            recent_volume = volume_series.iloc[-1]
+            avg_volume = volume_series.iloc[-(period+1):-1].mean()
+
+            if avg_volume == 0:
+                return False
+
+            volume_ratio = recent_volume / avg_volume
+            return volume_ratio >= threshold
+
+        except Exception:
+            return False
+
+    @staticmethod
+    def check_ma_bullish_arrangement(close_series, periods=[5, 10, 20]):
+        """
+        检查均线多头排列
+
+        Args:
+            close_series: 收盘价序列
+            periods: 均线周期列表，默认[5, 10, 20]
+
+        Returns:
+            bool: 是否均线多头排列
+        """
+        if len(close_series) < max(periods):
+            return False
+
+        try:
+            # 计算各周期均线
+            mas = []
+            for period in periods:
+                ma = close_series.rolling(window=period).mean()
+                if ma.empty or pd.isna(ma.iloc[-1]):
+                    return False
+                mas.append(ma.iloc[-1])
+
+            # 检查是否多头排列（短期均线 > 中期均线 > 长期均线）
+            for i in range(len(mas) - 1):
+                if mas[i] <= mas[i + 1]:
+                    return False
+
+            return True
+
+        except Exception:
+            return False
+
 
 class StockScorer:
     """根据技术指标为股票打分"""
@@ -158,11 +222,11 @@ class StockScorer:
                 reasons.append("均线多头排列")
             
             self.last_reasons = reasons
-            return score
-            
+            return score, reasons
+
         except Exception as e:
             print(f"计算评分时出错: {e}")
-            return 0
+            return 0, []
     
     def get_signal_reasons(self, stock_data=None):
         """获取最近一次评分的信号原因"""
