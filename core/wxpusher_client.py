@@ -147,20 +147,32 @@ class WxPusherClient:
                 # 兼容两种字段名：price 和 current_price
                 current_price = stock.get('price', stock.get('current_price', 0))
                 change_pct = stock.get('change_pct', 0)
-                
+                market_cap = stock.get('market_cap', 0)
+                reasons = stock.get('reasons', [])
+
                 # 涨跌颜色
                 color = "#ff4444" if change_pct < 0 else "#00aa00" if change_pct > 0 else "#666"
                 change_text = f"{change_pct:+.2f}%" if change_pct != 0 else "0.00%"
-                
+
+                # 市值格式化（转换为亿元）
+                market_cap_yi = market_cap / 100000000 if market_cap > 0 else 0
+
+                # 推荐理由格式化
+                reasons_text = " | ".join(reasons) if reasons else "暂无详细理由"
+
                 html += f"""
-                <div style='border: 1px solid #ddd; margin: 8px 0; padding: 10px; border-radius: 5px;'>
-                    <div style='font-weight: bold; font-size: 16px;'>
+                <div style='border: 1px solid #ddd; margin: 8px 0; padding: 12px; border-radius: 5px; background: #fafafa;'>
+                    <div style='font-weight: bold; font-size: 16px; color: #333; margin-bottom: 8px;'>
                         {i}. {name} ({code})
                     </div>
-                    <div style='margin-top: 5px;'>
-                        <span>💰 {current_price:.2f}元</span>
-                        <span style='color: {color}; margin-left: 10px;'>{change_text}</span>
-                        <span style='margin-left: 10px;'>⭐ {score:.1f}分</span>
+                    <div style='margin-bottom: 6px;'>
+                        <span style='background: #e3f2fd; padding: 2px 6px; border-radius: 3px; font-size: 14px;'>💰 {current_price:.2f}元</span>
+                        <span style='color: {color}; margin-left: 8px; font-weight: bold;'>{change_text}</span>
+                        <span style='margin-left: 8px; background: #fff3e0; padding: 2px 6px; border-radius: 3px;'>⭐ {score:.1f}分</span>
+                        <span style='margin-left: 8px; color: #666; font-size: 13px;'>📊 {market_cap_yi:.1f}亿</span>
+                    </div>
+                    <div style='font-size: 13px; color: #555; line-height: 1.4; background: white; padding: 6px; border-radius: 3px; border-left: 3px solid #2196f3;'>
+                        <strong>推荐理由：</strong>{reasons_text}
                     </div>
                 </div>
                 """

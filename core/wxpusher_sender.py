@@ -133,21 +133,27 @@ class WxPusherSender:
         if not stocks:
             message += "今日暂无符合条件的股票\n"
         else:
-            for i, stock in enumerate(stocks[:5], 1):  # 限制显示前5只
+            for i, stock in enumerate(stocks[:8], 1):  # 增加到8只，与打印内容更接近
                 code = stock.get('code', 'N/A')
                 name = stock.get('name', 'N/A')
                 score = stock.get('score', 0)
                 # 兼容两种字段名：price 和 current_price
                 current_price = stock.get('price', stock.get('current_price', 0))
                 change_pct = stock.get('change_pct', 0)
-                
+                market_cap = stock.get('market_cap', 0)
+                reasons = stock.get('reasons', [])
+
                 change_text = f"{change_pct:+.2f}%" if change_pct != 0 else "0.00%"
+                market_cap_yi = market_cap / 100000000 if market_cap > 0 else 0
+                reasons_text = " | ".join(reasons) if reasons else "暂无详细理由"
+
                 message += f"{i}. {name}({code})\n"
-                message += f"   💰 {current_price:.2f}元 {change_text}\n"
-                message += f"   ⭐ {score:.1f}分\n"
+                message += f"   💰 {current_price:.2f}元 {change_text} 📊 {market_cap_yi:.1f}亿 ⭐ {score:.1f}分\n"
+                message += f"   📋 {reasons_text}\n"
+                message += "\n"  # 添加空行分隔
             
-            if len(stocks) > 5:
-                message += f"... 还有 {len(stocks) - 5} 只股票\n"
+            if len(stocks) > 8:
+                message += f"... 还有 {len(stocks) - 8} 只股票\n"
         
         message += "=" * 30 + "\n"
         message += "⚠️ 本信息仅供参考，不构成投资建议\n"
