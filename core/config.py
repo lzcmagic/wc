@@ -103,7 +103,6 @@ SCHEDULE_CONFIG = {
     'run_time': time(9, 45),  # 修改为9:45运行
     'weekdays_only': True,
 }
-'''
 
 def create_user_config_template():
     """创建用户配置模板文件"""
