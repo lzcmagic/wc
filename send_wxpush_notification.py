@@ -36,8 +36,27 @@ def main():
     
     # 检查结果文件是否存在
     if not os.path.exists(results_file):
-        print(f"❌ 结果文件不存在: {results_file}")
-        sys.exit(1)
+        print(f"⚠️ 结果文件不存在: {results_file}")
+        print("📱 可能是没有找到符合条件的股票，发送无结果通知...")
+
+        # 发送无结果通知
+        try:
+            today = datetime.now().strftime('%Y-%m-%d')
+            sender = WxPusherSender()
+            if sender.is_enabled():
+                success = sender.send_no_results_notification(strategy_name, today)
+                if success:
+                    print("✅ 无结果通知发送成功！")
+                    sys.exit(0)
+                else:
+                    print("❌ 无结果通知发送失败！")
+                    sys.exit(1)
+            else:
+                print("❌ WxPusher未启用，无法发送通知")
+                sys.exit(1)
+        except Exception as e:
+            print(f"❌ 发送无结果通知时出错: {e}")
+            sys.exit(1)
     
     # 读取选股结果
     try:

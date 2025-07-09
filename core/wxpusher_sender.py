@@ -214,7 +214,133 @@ class WxPusherSender:
                 success = False
         
         return success
-    
+
+    def send_no_results_notification(self, strategy_name: str, date: Optional[str] = None) -> bool:
+        """
+        发送无选股结果通知
+
+        Args:
+            strategy_name: 策略名称
+            date: 选股日期
+
+        Returns:
+            是否发送成功
+        """
+        if not self.is_enabled():
+            logger.info("📱 WxPusher未启用，跳过微信推送")
+            return True
+
+        if not date:
+            date = datetime.now().strftime("%Y-%m-%d")
+
+        # 策略显示名称映射
+        strategy_display_names = {
+            'technical': '技术分析策略',
+            'comprehensive': '四维综合分析策略'
+        }
+
+        strategy_display = strategy_display_names.get(strategy_name, strategy_name)
+
+        # 构建HTML消息内容
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h2 style="margin: 0; font-size: 24px;">📊 A股智能选股系统</h2>
+                <p style="margin: 10px 0 0 0; opacity: 0.9;">每日选股结果通知</p>
+            </div>
+
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 0 0 10px 10px;">
+                <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="color: #333; margin-top: 0;">📅 {date} 选股结果</h3>
+                    <p><strong>📈 策略:</strong> {strategy_display}</p>
+
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                        <h4 style="color: #856404; margin: 0 0 10px 0;">📋 选股结果</h4>
+                        <p style="color: #856404; margin: 0; font-size: 16px;">
+                            🔍 今日未找到符合 <strong>{strategy_display}</strong> 条件的股票
+                        </p>
+                        <p style="color: #856404; margin: 10px 0 0 0; font-size: 14px;">
+                            可能原因：市场条件不符合策略要求，或筛选条件过于严格
+                        </p>
+                    </div>
+
+                    <div style="background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                        <h4 style="color: #721c24; margin: 0 0 10px 0;">⚠️ 风险提示</h4>
+                        <p style="color: #721c24; margin: 0; font-size: 14px;">
+                            • 本系统仅供参考，不构成投资建议<br/>
+                            • 投资有风险，入市需谨慎<br/>
+                            • 请结合自身情况理性投资
+                        </p>
+                    </div>
+
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;"/>
+                    <p style="color: #666; font-size: 12px; text-align: center; margin: 0;">
+                        🤖 由A股智能选股系统自动生成 | {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+                    </p>
+                </div>
+            </div>
+        </div>
+        """
+
+        # 构建文本消息内容（用于极简推送）
+        text_content = f"""📊 A股智能选股系统 - 每日选股结果
+
+📅 日期: {date}
+📈 策略: {strategy_display}
+
+📋 选股结果:
+🔍 今日未找到符合条件的股票
+
+可能原因：
+• 市场条件不符合策略要求
+• 筛选条件过于严格
+
+⚠️ 风险提示：
+投资有风险，入市需谨慎。本信息仅供参考，不构成投资建议。
+
+🤖 由A股智能选股系统自动生成
+{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}"""
+
+        success = True
+
+        # 标准推送
+        if self.client and (self.config['uids'] or self.config['topic_ids']):
+            try:
+                result = self.client.send_message(
+                    content=html_content,
+                    uids=self.config['uids'] if self.config['uids'] else None,
+                    topic_ids=self.config['topic_ids'] if self.config['topic_ids'] else None,
+                    content_type=2,  # HTML格式
+                    summary=f"{strategy_display}选股(无结果)"
+                )
+
+                if result.get('code') == 1000:
+                    logger.info(f"✅ WxPusher标准推送无结果通知发送成功")
+                else:
+                    logger.error(f"❌ WxPusher标准推送无结果通知失败: {result.get('msg')}")
+                    success = False
+
+            except Exception as e:
+                logger.error(f"❌ WxPusher标准推送无结果通知异常: {e}")
+                success = False
+
+        # 极简推送
+        if self.simple_client:
+            try:
+                result = self.simple_client.send_message(text_content)
+
+                if result.get('code') == 1000:
+                    logger.info(f"✅ WxPusher极简推送无结果通知发送成功")
+                else:
+                    logger.error(f"❌ WxPusher极简推送无结果通知失败: {result.get('msg')}")
+                    success = False
+
+            except Exception as e:
+                logger.error(f"❌ WxPusher极简推送无结果通知异常: {e}")
+                success = False
+
+        return success
+
     def get_user_count(self) -> int:
         """获取关注用户数量"""
         if not self.client:
