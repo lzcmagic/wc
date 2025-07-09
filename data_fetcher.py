@@ -70,11 +70,10 @@ class StockDataFetcher:
             original_count = len(df)
             print(f"   - 获取到 {original_count} 只股票，开始进行市值和状态筛选...")
 
-            # 1. 筛选掉ST、*ST、退市股和科创板、创业板风险股
+            # 1. 筛选掉ST、*ST、退市股和新股
             df = df[~df['名称'].str.contains('ST|退|N |C ', na=False)]  # 排除新股和次新股
-            df = df[~df['代码'].str.startswith(('688', '300'))]  # 排除科创板和创业板
             after_st_filter_count = len(df)
-            print(f"   - 排除ST、退市股、新股、科创板、创业板后剩余: {after_st_filter_count} 只")
+            print(f"   - 排除ST、退市股、新股后剩余: {after_st_filter_count} 只")
 
             # 2. 筛选总市值在50亿到200亿之间的股票 (提高门槛，聚焦优质股票)
             market_cap_min = 50 * 100000000  # 50亿 (提高最低门槛)
