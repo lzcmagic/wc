@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import time
+import threading
 from functools import lru_cache, wraps
 import functools
 import os
@@ -15,13 +16,29 @@ import requests
 from requests import sessions
 
 class StockDataFetcher:
+    # 类级别的锁，用于控制全局请求频率
+    _request_lock = threading.Lock()
+    _last_request_time = 0
+
     def __init__(self, config=None):
         # 移除重试机制，使用更长的请求间隔
-        self.request_delay = 0.2  # 增加到200ms间隔
+        self.request_delay = 1.0  # 增加到1秒间隔，减少API调用压力
         self.headers = {
             'User-Agent': 'Mozilla/5.0 ...'
         }
-    
+
+    def _wait_for_rate_limit(self):
+        """全局请求频率控制，确保并发环境下也能正确限流"""
+        with self._request_lock:
+            current_time = time.time()
+            time_since_last = current_time - self._last_request_time
+
+            if time_since_last < self.request_delay:
+                sleep_time = self.request_delay - time_since_last
+                time.sleep(sleep_time)
+
+            self._last_request_time = time.time()
+
     @lru_cache(maxsize=1)
     def get_trade_days(self, start_date, end_date):
         """获取指定时间范围内的所有交易日"""
@@ -95,8 +112,8 @@ class StockDataFetcher:
         start_date = end_date - timedelta(days=period * 1.5) # 获取更多数据以计算指标
 
         try:
-            # 添加请求间隔，避免频繁调用API
-            time.sleep(self.request_delay)
+            # 使用全局请求频率控制，确保并发环境下也能正确限流
+            self._wait_for_rate_limit()
 
             df = ak.stock_zh_a_hist(
                 symbol=stock_code,
@@ -259,8 +276,8 @@ class StockDataFetcher:
             if len(filtered_stocks) >= 50:
                 break
                 
-            # 避免请求过于频繁，使用统一的延迟时间
-            time.sleep(self.request_delay)
+            # 避免请求过于频繁，使用全局频率控制
+            self._wait_for_rate_limit()
         
         return pd.DataFrame(filtered_stocks)
 

@@ -36,7 +36,8 @@ class StrategyConfig:
         ],
         
         # API调用控制
-        'api_call_delay': 0.1,
+        'api_call_delay': 1.0,  # 增加到1秒，减少API压力
+        'max_workers': 8,       # 减少并发线程数，配合更长的延迟
         'sample_size': 100,
         'max_filtered_stocks': 50,
         'min_data_days': 30,
@@ -88,7 +89,11 @@ class StrategyConfig:
             'fundamental': 0.25,
             'sentiment': 0.10,
             'industry': 0.05
-        }
+        },
+
+        # API调用控制
+        'api_call_delay': 1.0,  # 增加到1秒，减少API压力
+        'max_workers': 6,       # 综合策略使用更少的并发线程
     }
     
     # --- 定时任务配置 ---
