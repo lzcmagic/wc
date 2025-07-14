@@ -53,11 +53,11 @@ class StrategyConfig:
         'analysis_period': 90,
         'max_stocks': 8,
 
-        # 基础筛选条件 (优化：进一步提高门槛)
-        'min_market_cap': 8000000000,    # 80亿市值 (保持高门槛)
-        'max_market_cap': 120 * 100000000, # 120亿 (添加上限，聚焦中大盘股)
-        'max_recent_gain': 20,           # 近期最大涨幅20% (降低涨幅限制)
-        'min_score': 78,                 # 最低总评分78 (提高评分门槛)
+        # 基础筛选条件 (优化：适度放宽条件，增加候选股票池)
+        'min_market_cap': 6000000000,    # 60亿市值 (适当降低门槛)
+        'max_market_cap': 150 * 100000000, # 150亿 (扩大上限，增加选择空间)
+        'max_recent_gain': 25,           # 近期最大涨幅25% (适当放宽)
+        'min_score': 68,                 # 最低总评分68 (降低门槛，提高命中率)
 
         # 1. 技术面分析配置
         'technical_indicators': [
@@ -97,6 +97,53 @@ class StrategyConfig:
         'max_workers': 6,       # 综合策略使用更少的并发线程
     }
     
+    # --- 策略3: 短线交易策略 (新增) ---
+    SHORT_TERM_STRATEGY = {
+        'strategy_name': 'short_term',
+        'display_name': '短线交易策略',
+        
+        # 基础运行参数
+        'period': 20,                    # 只看20天数据，够用
+        'analysis_period': 20,
+        'max_stocks': 15,                # 多一些选择
+        
+        # 基础筛选条件 (短线专用)
+        'min_market_cap': 2000000000,    # 20亿即可，中小盘更活跃
+        'max_market_cap': 80000000000,   # 800亿以下，避免大象股
+        'max_recent_gain': 50,           # 允许50%涨幅，抓妖股机会
+        'min_score': 60,                 # 降低门槛，增加机会
+        'min_turnover_rate': 3,          # 换手率>3%，活跃度要求
+        'max_pe': 100,                   # PE放宽，成长股估值高正常
+        
+        # 短线专用技术指标配置
+        'technical_indicators': [
+            {"kind": "sma", "length": 5},
+            {"kind": "sma", "length": 10},
+            {"kind": "macd", "fast": 6, "slow": 12, "signal": 4}, # 更敏感参数
+            {"kind": "rsi", "length": 6},    # 更短周期RSI
+            {"kind": "kdj", "length": 6},    # 更短周期KDJ
+            {"kind": "bbands", "length": 10, "std": 1.5}  # 短期布林带
+        ],
+        
+        # 短线专用权重配置 - 重成交量轻基本面
+        'weights': {
+            'volume_momentum': 0.25,     # 成交量动量 - 最重要
+            'price_momentum': 0.20,      # 价格动量 - 短期趋势
+            'technical_breakthrough': 0.20, # 技术突破信号
+            'market_sentiment': 0.15,    # 市场情绪/热点
+            'liquidity': 0.10,          # 流动性指标
+            'volatility': 0.10,         # 波动率 - 短线需要波动
+        },
+        
+        # API调用控制
+        'api_call_delay': 0.8,  # 稍快一些，短线时效性要求高
+        'max_workers': 10,      # 增加并发，提高速度
+        'sample_size': 120,     # 增加采样，短线需要更多机会
+        'max_filtered_stocks': 50,  # 增加候选数量
+        'min_data_days': 15,    # 减少最小数据天数
+        'recent_gain_days': 5   # 缩短涨幅统计周期
+    }
+    
     # --- 定时任务配置 ---
     SCHEDULE_CONFIG = {
         'enabled': True,
@@ -112,6 +159,8 @@ class StrategyConfig:
             return cls.TECHNICAL_STRATEGY.copy()
         elif strategy_name == 'comprehensive':
             return cls.COMPREHENSIVE_STRATEGY.copy()
+        elif strategy_name == 'short_term':
+            return cls.SHORT_TERM_STRATEGY.copy()
         else:
             raise ValueError(f"未知的策略名称: {strategy_name}")
     
@@ -120,7 +169,8 @@ class StrategyConfig:
         """获取所有策略配置"""
         return {
             'technical': cls.TECHNICAL_STRATEGY,
-            'comprehensive': cls.COMPREHENSIVE_STRATEGY
+            'comprehensive': cls.COMPREHENSIVE_STRATEGY,
+            'short_term': cls.SHORT_TERM_STRATEGY
         }
     
     @classmethod

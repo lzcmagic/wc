@@ -12,6 +12,7 @@ from datetime import datetime
 # 动态导入策略
 from strategies.technical_strategy import TechnicalStrategySelector
 from strategies.comprehensive_strategy import ComprehensiveStrategySelector
+from strategies.short_term_strategy import ShortTermTradingStrategy
 
 # 导入WxPusher相关模块
 from core.wxpusher_sender import wxpusher_sender
@@ -20,7 +21,8 @@ from core.env_config import env_config
 # 策略注册表
 STRATEGY_MAP = {
     'technical': TechnicalStrategySelector,
-    'comprehensive': ComprehensiveStrategySelector
+    'comprehensive': ComprehensiveStrategySelector,
+    'short_term': ShortTermTradingStrategy
 }
 
 def run_selection(strategy_name):

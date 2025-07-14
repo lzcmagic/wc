@@ -1,14 +1,6 @@
-name: 每日定时选股
+name: daliy_stock_selection
 
 on:
-  # 代码推送时自动触发（仅限主分支）
-  push:
-    branches: [ main, master ]
-    paths-ignore:
-      - 'results/**'  # 忽略结果文件的推送，避免循环触发
-      - 'README.md'
-      - 'docs/**'
-  
   # 允许在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
   
@@ -19,17 +11,17 @@ on:
     # 9:35 (北京时间) = 1:35 (UTC)
     # 12:00 (北京时间) = 4:00 (UTC)  
     # 16:00 (北京时间) = 8:00 (UTC)
-    - cron: '10 1 * * 1-5'   # 9:35 (北京时间)
+    - cron: '40 1 * * 1-5'   # 9:40 (北京时间)
     - cron: '0 4 * * 1-5'    # 12:00 (北京时间)
-    - cron: '10 6 * * 1-5'    # 16:00 (北京时间)
+    - cron: '10 6 * * 1-5'    # 14:10 (北京时间)
 
 jobs:
   run-scheduled-selection:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 定义策略矩阵，这两个任务将会并行执行
-        strategy: [technical, comprehensive]
+        # 定义策略矩阵，三个任务将会并行执行
+        strategy: [technical, comprehensive, short_term]
       fail-fast: false # 即使一个策略失败，其他策略也继续运行
 
     steps:
@@ -58,28 +50,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 第四步：根据矩阵中的策略名称运行选股脚本
+      # 第四步：根据矩阵中的策略名称运行选股脚本（内置推送已包含微信通知）
       - name: Run stock selection for ${{ matrix.strategy }}
         timeout-minutes: 60  # 设置60分钟超时
         run: |
-          # 直接运行核心的选股脚本
-          echo "🚀 开始运行选股策略..."
+          # 直接运行核心的选股脚本，内置推送功能会自动发送微信通知
+          echo "🚀 开始运行选股策略: ${{ matrix.strategy }}"
           python main.py select --strategy ${{ matrix.strategy }}
           
           # 检查结果文件
           echo "📊 检查结果文件..."
           ls -la results/ || echo "⚠️ results目录不存在"
 
-      # 第五步：发送微信推送通知
-      - name: Send WxPusher notification for ${{ matrix.strategy }}
-        if: success() # 只要任务成功就发送推送
-        timeout-minutes: 5  # 推送发送超时5分钟
-        run: |
-          # 发送微信推送通知
-          echo "📱 开始发送微信推送通知..."
-          python send_wxpush_notification.py ${{ matrix.strategy }}
+      # 移除重复的微信推送步骤，避免重复推送
+      # 注释：微信推送已在选股过程中自动发送，无需额外步骤
 
-      # 第六步：上传结果文件
+      # 第五步：上传结果文件
       - name: Upload results for ${{ matrix.strategy }}
         if: success()
         uses: actions/upload-artifact@v4

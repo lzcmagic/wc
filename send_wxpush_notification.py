@@ -8,9 +8,54 @@ WxPusher微信推送通知发送脚本
 import os
 import sys
 import json
-from datetime import datetime
+import hashlib
+from datetime import datetime, timedelta
 from core.wxpusher_sender import WxPusherSender
 from core.env_config import env_config
+
+def get_cache_file(strategy_name, date):
+    """获取缓存文件路径"""
+    cache_dir = "results/.cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, f"push_cache_{strategy_name}_{date}")
+
+def is_already_sent(strategy_name, results_content, date):
+    """检查是否已经发送过相同内容"""
+    cache_file = get_cache_file(strategy_name, date)
+    
+    if not os.path.exists(cache_file):
+        return False
+    
+    try:
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            cache_data = json.load(f)
+        
+        # 检查时间（2小时内算重复）
+        cache_time = datetime.fromisoformat(cache_data['timestamp'])
+        if datetime.now() - cache_time > timedelta(hours=2):
+            return False
+        
+        # 检查内容哈希
+        content_hash = hashlib.md5(results_content.encode()).hexdigest()
+        return cache_data.get('content_hash') == content_hash
+        
+    except Exception:
+        return False
+
+def mark_as_sent(strategy_name, results_content, date):
+    """标记为已发送"""
+    cache_file = get_cache_file(strategy_name, date)
+    content_hash = hashlib.md5(results_content.encode()).hexdigest()
+    
+    cache_data = {
+        'timestamp': datetime.now().isoformat(),
+        'content_hash': content_hash,
+        'strategy': strategy_name,
+        'date': date
+    }
+    
+    with open(cache_file, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f)
 
 def main():
     """主函数"""
@@ -42,10 +87,18 @@ def main():
         # 发送无结果通知
         try:
             today = datetime.now().strftime('%Y-%m-%d')
+            
+            # 检查重复推送
+            no_result_content = f"no_results_{strategy_name}_{today}"
+            if is_already_sent(strategy_name, no_result_content, today):
+                print("⚠️ 检测到2小时内已发送过相同的无结果通知，跳过重复推送")
+                sys.exit(0)
+            
             sender = WxPusherSender()
             if sender.is_enabled():
                 success = sender.send_no_results_notification(strategy_name, today)
                 if success:
+                    mark_as_sent(strategy_name, no_result_content, today)
                     print("✅ 无结果通知发送成功！")
                     sys.exit(0)
                 else:
@@ -61,13 +114,20 @@ def main():
     # 读取选股结果
     try:
         with open(results_file, 'r', encoding='utf-8') as f:
-            stocks = json.load(f)
+            content = f.read()
+            stocks = json.loads(content)
         
         if not stocks:
             print("⚠️ 选股结果为空，跳过推送")
             sys.exit(0)
             
         print(f"📊 读取到 {len(stocks)} 只股票")
+        
+        # 检查重复推送
+        today = datetime.now().strftime('%Y-%m-%d')
+        if is_already_sent(strategy_name, content, today):
+            print("⚠️ 检测到2小时内已发送过相同内容，跳过重复推送")
+            sys.exit(0)
         
     except Exception as e:
         print(f"❌ 读取结果文件失败: {e}")
@@ -98,6 +158,7 @@ def main():
         )
         
         if success:
+            mark_as_sent(strategy_name, content, today)
             print("✅ 微信推送发送成功！")
             print("📱 请检查您的微信，查看选股结果推送")
             sys.exit(0)

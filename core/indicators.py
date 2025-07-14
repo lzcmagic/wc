@@ -139,6 +139,194 @@ class TechnicalIndicators:
             return False
 
 
+class EnhancedStockScorer:
+    """增强版技术指标评分器"""
+    
+    def __init__(self):
+        # 基础权重
+        self.base_weights = {
+            'macd': 0.20,
+            'rsi': 0.15,
+            'kdj': 0.15,
+            'bollinger': 0.12,
+            'volume': 0.18,  # 提升成交量权重
+            'ma': 0.10,
+            'adx': 0.10      # 新增趋势强度
+        }
+        self.last_reasons = []
+    
+    def calculate_enhanced_score(self, stock_data, market_trend='neutral'):
+        """
+        增强版评分系统
+        """
+        if stock_data.empty or len(stock_data) < 60:
+            return 0, []
+        
+        try:
+            # 1. 动态权重调整
+            weights = self._adjust_weights_by_market(market_trend)
+            
+            # 2. 计算各项指标
+            scores = self._calculate_all_indicators(stock_data)
+            
+            # 3. 多指标组合确认
+            confirmed_signals = self._cross_validate_signals(scores, stock_data)
+            
+            # 4. 趋势强度加权
+            trend_strength = self._calculate_trend_strength(stock_data)
+            
+            # 5. 综合评分
+            total_score = self._weighted_score(scores, weights, trend_strength)
+            
+            # 6. 生成推荐理由
+            reasons = self._generate_reasons(confirmed_signals, trend_strength)
+            
+            return min(100, max(0, total_score)), reasons
+            
+        except Exception as e:
+            print(f"增强评分计算错误: {e}")
+            return 0, []
+    
+    def _adjust_weights_by_market(self, market_trend):
+        """根据市场趋势动态调整权重"""
+        weights = self.base_weights.copy()
+        
+        if market_trend == 'bull':
+            # 牛市：加重趋势指标
+            weights['macd'] *= 1.2
+            weights['ma'] *= 1.3
+            weights['volume'] *= 1.1
+        elif market_trend == 'bear':
+            # 熊市：加重超跌指标
+            weights['rsi'] *= 1.3
+            weights['bollinger'] *= 1.2
+            weights['kdj'] *= 1.1
+        elif market_trend == 'volatile':
+            # 震荡市：加重ADX和成交量
+            weights['adx'] *= 1.4
+            weights['volume'] *= 1.2
+            
+        # 归一化权重
+        total = sum(weights.values())
+        return {k: v/total for k, v in weights.items()}
+    
+    def _calculate_all_indicators(self, stock_data):
+        """计算所有技术指标得分"""
+        scores = {}
+        
+        # MACD
+        scores['macd'] = self._score_macd_enhanced(stock_data)
+        
+        # RSI
+        scores['rsi'] = self._score_rsi_enhanced(stock_data)
+        
+        # KDJ
+        scores['kdj'] = self._score_kdj_enhanced(stock_data)
+        
+        # 布林带
+        scores['bollinger'] = self._score_bollinger_enhanced(stock_data)
+        
+        # 成交量（增强版）
+        scores['volume'] = self._score_volume_enhanced(stock_data)
+        
+        # 均线
+        scores['ma'] = self._score_ma_enhanced(stock_data)
+        
+        # ADX趋势强度
+        scores['adx'] = self._score_adx(stock_data)
+        
+        return scores
+    
+    def _score_macd_enhanced(self, data):
+        """增强版MACD评分"""
+        score = 0
+        macd = TechnicalIndicators.calculate_macd(data['close'])
+        
+        if macd.empty:
+            return 0
+            
+        # 金叉确认
+        if len(macd) >= 2:
+            if macd.iloc[-1] > 0 and macd.iloc[-2] <= 0:
+                score += 30  # 金叉
+            elif macd.iloc[-1] > macd.iloc[-2] > 0:
+                score += 20  # 加速上涨
+            elif macd.iloc[-1] > 0:
+                score += 10  # 零轴上方
+        
+        # MACD柱状图趋势
+        if len(macd) >= 3:
+            recent_trend = macd.iloc[-3:].diff().mean()
+            if recent_trend > 0:
+                score += 10  # 向上趋势
+                
+        return min(100, score)
+    
+    def _score_volume_enhanced(self, data):
+        """增强版成交量评分"""
+        score = 0
+        volume = data['volume']
+        close = data['close']
+        
+        # 1. 成交量放大
+        if self._check_volume_breakout(volume):
+            score += 25
+        
+        # 2. 量价配合
+        if self._check_price_volume_confirmation(close, volume):
+            score += 20
+        
+        # 3. OBV资金流向
+        obv_score = self._calculate_obv_score(close, volume)
+        score += obv_score
+        
+        # 4. 换手率分析
+        turnover_score = self._analyze_turnover_rate(volume, data.get('market_cap', 0))
+        score += turnover_score
+        
+        return min(100, score)
+    
+    def _check_volume_breakout(self, volume, lookback=20, threshold=2.0):
+        """检查成交量突破"""
+        if len(volume) < lookback + 1:
+            return False
+        
+        recent_avg = volume.iloc[-5:].mean()
+        historical_avg = volume.iloc[-(lookback+5):-5].mean()
+        
+        return recent_avg > historical_avg * threshold
+    
+    def _check_price_volume_confirmation(self, close, volume):
+        """检查量价配合"""
+        if len(close) < 5:
+            return False
+        
+        price_trend = close.iloc[-5:].diff().mean()
+        volume_trend = volume.iloc[-5:].diff().mean()
+        
+        # 价涨量增或价跌量缩
+        return (price_trend > 0 and volume_trend > 0) or (price_trend < 0 and volume_trend < 0)
+    
+    def _calculate_trend_strength(self, data):
+        """计算趋势强度"""
+        adx_series, plus_di, minus_di = TechnicalIndicators.calculate_adx(
+            data['high'], data['low'], data['close']
+        )
+        
+        if adx_series.empty:
+            return 0.5  # 中性
+        
+        adx_value = adx_series.iloc[-1] if not pd.isna(adx_series.iloc[-1]) else 25
+        
+        # ADX > 25 为强趋势
+        if adx_value > 40:
+            return 1.0  # 强趋势
+        elif adx_value > 25:
+            return 0.8  # 中等趋势
+        else:
+            return 0.6  # 弱趋势
+
+
 class StockScorer:
     """根据技术指标为股票打分"""
     

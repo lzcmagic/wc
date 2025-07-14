@@ -31,33 +31,61 @@ class ComprehensiveStrategySelector(BaseSelector):
         
         f_data = self.fetcher.get_fundamental_data(stock_code)
         if not f_data:
-            return 0, ["数据缺失"]
+            # 数据缺失时给予中性评分，避免过度惩罚
+            return 50, ["基本面数据缺失，给予中性评分"]
 
         pe = f_data.get('pe_ttm', np.inf)
         roe = f_data.get('roe', -np.inf)
         pb = f_data.get('pb', np.inf)
 
-        # 1. PE估值评分
+        # 基础分数（数据可获取）
+        base_score = 30
+        score += base_score
+        reasons.append("基本面数据可获取")
+
+        # 1. PE估值评分 (最高20分)
         if 0 < pe <= filters['max_pe_ttm']:
-            score += 40
+            score += 20
             reasons.append(f"PE({pe:.1f})合理")
         elif pe > filters['max_pe_ttm']:
-             reasons.append(f"PE({pe:.1f})过高")
-
-
-        # 2. ROE盈利能力评分
-        if roe >= filters['min_roe']:
-            score += 40
-            reasons.append(f"ROE({roe:.1f}%)较高")
+            score += 5  # 估值偏高但不为0
+            reasons.append(f"PE({pe:.1f})偏高")
         else:
-            reasons.append(f"ROE({roe:.1f}%)较低")
+            score += 10  # 无效PE数据给予中性分
+            reasons.append("PE数据无效")
 
-        # 3. PB估值评分
+        # 2. ROE盈利能力评分 (最高30分)
+        if roe >= filters['min_roe']:
+            if roe >= 15:
+                score += 30  # 优秀ROE
+                reasons.append(f"ROE({roe:.1f}%)优秀")
+            else:
+                score += 20  # 良好ROE
+                reasons.append(f"ROE({roe:.1f}%)良好")
+        elif roe >= 0:
+            score += 10  # 正ROE但较低
+            reasons.append(f"ROE({roe:.1f}%)偏低")
+        else:
+            score += 5   # 负ROE但不为0
+            reasons.append(f"ROE({roe:.1f}%)较差")
+
+        # 3. PB估值评分 (最高20分)
         if 0 < pb <= filters['max_pb']:
-            score += 20
-            reasons.append(f"PB({pb:.1f})合理")
+            if pb <= 2:
+                score += 20  # 优秀PB
+                reasons.append(f"PB({pb:.1f})优秀")
+            else:
+                score += 15  # 合理PB
+                reasons.append(f"PB({pb:.1f})合理")
+        elif pb > filters['max_pb']:
+            score += 5   # 高PB但不为0
+            reasons.append(f"PB({pb:.1f})偏高")
+        else:
+            score += 10  # 无效PB数据
+            reasons.append("PB数据无效")
         
-        return score, reasons
+        # 确保评分在0-100范围内
+        return min(100, max(0, score)), reasons
 
     def _calculate_sentiment_score(self, stock_code: str) -> (float, list):
         """(占位) 计算市场情绪评分"""
