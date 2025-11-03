@@ -15,6 +15,18 @@ import os
 import requests
 from requests import sessions
 
+# 可选引入 TuShare，作为后备数据源
+try:
+    import tushare as ts  # type: ignore
+except Exception:
+    ts = None  # 在运行时检测是否可用
+
+# 读取环境变量（支持 .env）
+try:
+    from core.env_config import env_config
+except Exception:
+    env_config = None
+
 class StockDataFetcher:
     # 类级别的锁，用于控制全局请求频率
     _request_lock = threading.Lock()
@@ -26,6 +38,33 @@ class StockDataFetcher:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 ...'
         }
+        # 网络环境兼容性：显式为东财域名绕过代理，避免因本地或失效代理导致连接中断
+        try:
+            http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+            https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+            # 常见本地代理地址未启动时会导致连接失败
+            maybe_local_proxy = any(
+                str(p).startswith('http://127.0.0.1') or str(p).startswith('http://localhost')
+                for p in [http_proxy, https_proxy] if p
+            )
+            # 加入 NO_PROXY 直连东财域名，减少被动断连
+            no_proxy = os.environ.get('NO_PROXY') or os.environ.get('no_proxy') or ''
+            bypass_hosts = ['.eastmoney.com', 'push2.eastmoney.com', '82.push2.eastmoney.com']
+            for host in bypass_hosts:
+                if host not in no_proxy:
+                    no_proxy = (no_proxy + ',' + host).strip(',') if no_proxy else host
+            os.environ['NO_PROXY'] = no_proxy
+            os.environ['no_proxy'] = no_proxy
+            # 若检测到本地代理地址（可能未运行），则移除代理设置以保证可用性
+            if maybe_local_proxy:
+                for k in ['HTTP_PROXY','HTTPS_PROXY','http_proxy','https_proxy']:
+                    if k in os.environ:
+                        os.environ.pop(k, None)
+            # 强制 requests 忽略环境代理设置（akshare内部使用requests）
+            sessions.Session.trust_env = False
+        except Exception:
+            # 忽略代理处理中的异常，使用系统默认环境
+            pass
 
     def _wait_for_rate_limit(self):
         """全局请求频率控制，确保并发环境下也能正确限流"""
@@ -39,17 +78,79 @@ class StockDataFetcher:
 
             self._last_request_time = time.time()
 
-    @lru_cache(maxsize=1)
-    def get_trade_days(self, start_date, end_date):
-        """获取指定时间范围内的所有交易日"""
+    def _get_tushare_pro(self):
+        """获取 TuShare pro 实例（如不可用则返回 None）"""
         try:
-            df = ak.tool_trade_date_hist_sina()
-            df['trade_date'] = pd.to_datetime(df['trade_date'])
-            trade_days = df[(df['trade_date'] >= start_date) & (df['trade_date'] <= end_date)]
-            return trade_days['trade_date'].tolist()
+            if 'ts' not in globals() or ts is None:
+                return None
+            token = None
+            if env_config:
+                token = env_config.get_str('TUSHARE_TOKEN', '')
+            if not token:
+                token = os.environ.get('TUSHARE_TOKEN', '')
+            if not token:
+                return None
+            ts.set_token(token)
+            return ts.pro_api(token)
+        except Exception:
+            return None
+
+    def _stock_code_to_ts_code(self, code: str) -> str:
+        code = str(code).zfill(6)
+        if code.startswith('6'):
+            return f"{code}.SH"
+        else:
+            return f"{code}.SZ"
+
+    def _tushare_fetch_all_stocks(self) -> pd.DataFrame:
+        """使用 TuShare 获取全量股票列表(仅code,name)，无需付费权限"""
+        pro = self._get_tushare_pro()
+        if pro is None:
+            raise RuntimeError('TuShare 未配置或不可用')
+        basics = pro.stock_basic(exchange='', list_status='L', fields='ts_code,symbol,name')
+        if basics is None or basics.empty:
+            raise RuntimeError('TuShare stock_basic 为空')
+        df = pd.DataFrame({
+            'code': basics['symbol'].astype(str).str.zfill(6),
+            'name': basics['name']
+        })
+        return df
+
+    def _tushare_fetch_hist(self, stock_code: str, start_date: datetime, end_date: datetime) -> pd.DataFrame:
+        """使用 TuShare 获取历史行情，返回与 akshare 对齐的列"""
+        pro = self._get_tushare_pro()
+        if pro is None:
+            raise RuntimeError('TuShare 未配置或不可用')
+        ts_code = self._stock_code_to_ts_code(stock_code)
+        try:
+            # TuShare 的 pro_bar 直接使用全局 ts 接口
+            # 需要先确保已经 set_token
+            # 在 _get_tushare_pro 中已经 set_token
+            df = ts.pro_bar(ts_code=ts_code,
+                            start_date=start_date.strftime('%Y%m%d'),
+                            end_date=end_date.strftime('%Y%m%d'),
+                            adj='qfq',
+                            freq='D')
+            if df is None or df.empty:
+                raise RuntimeError('TuShare pro_bar 返回空')
+            # 对齐列名
+            mapping = {
+                'trade_date': 'date',
+                'open': 'open',
+                'close': 'close',
+                'high': 'high',
+                'low': 'low',
+                'vol': 'volume',
+                'amount': 'turnover'
+            }
+            keep = [k for k in mapping.keys() if k in df.columns]
+            df = df[keep].copy()
+            df.rename(columns=mapping, inplace=True)
+            # 类型转换
+            df['date'] = pd.to_datetime(df['date'])
+            return df.sort_values('date')
         except Exception as e:
-            print(f"❌ 获取交易日历失败: {e}")
-            return pd.date_range(start=start_date, end=end_date, freq='B').tolist()
+            raise RuntimeError(f'TuShare 历史行情获取失败: {e}')
 
     def get_all_stocks_with_market_cap(self):
         """
@@ -60,27 +161,59 @@ class StockDataFetcher:
         2. 只保留总市值在30亿到500亿之间的股票。
         """
         print(f"   - 正在获取全量A股列表并进行预筛选...")
+        cache_path = os.path.join('cache', 'all_a_list.csv')
+        max_retries = 5
+        base_delay = 1.0
         try:
-            df = ak.stock_zh_a_spot_em()
-            if df.empty: 
-                print("   - 警告：未能从akshare获取到股票列表。")
-                return pd.DataFrame()
+            df = pd.DataFrame()
+            last_err = None
+            for i in range(max_retries):
+                try:
+                    # 限流以避免过频调用
+                    self._wait_for_rate_limit()
+                    df = ak.stock_zh_a_spot_em()
+                    if not df.empty:
+                        break
+                except Exception as e:
+                    last_err = e
+                # 指数退避
+                time.sleep(base_delay * (2 ** i))
+            if df.empty:
+                # 在线失败，尝试使用本地缓存
+                if os.path.exists(cache_path):
+                    print("   - 在线获取失败，使用本地缓存 all_a_list.csv 作为回退数据")
+                    try:
+                        df = pd.read_csv(cache_path)
+                    except Exception:
+                        df = pd.DataFrame()
+                if df.empty:
+                    # 尝试 TuShare 后备
+                    try:
+                        print("   - Eastmoney 接口失败，尝试使用 TuShare 后备数据源...")
+                        df = self._tushare_fetch_all_stocks()
+                    except Exception as e2:
+                        last_err = e2
+                if df.empty:
+                    raise RuntimeError(f"无法获取全量A股列表，且无缓存可用: {last_err}")
 
             # 预筛选前股票数量
             original_count = len(df)
             print(f"   - 获取到 {original_count} 只股票，开始进行市值和状态筛选...")
 
             # 1. 筛选掉ST、*ST、退市股和新股
-            df = df[~df['名称'].str.contains('ST|退|N |C ', na=False)]  # 排除新股和次新股
+            name_col = '名称' if '名称' in df.columns else 'name'
+            df = df[~df[name_col].astype(str).str.contains('ST|退|N |C ', na=False)]
             after_st_filter_count = len(df)
             print(f"   - 排除ST、退市股、新股后剩余: {after_st_filter_count} 只")
 
             # 2. 筛选总市值在50亿到200亿之间的股票 (提高门槛，聚焦优质股票)
-            market_cap_min = 50 * 100000000  # 50亿 (提高最低门槛)
-            market_cap_max = 200 * 100000000 # 200亿 (降低上限，避免超大盘股)
-            df = df[df['总市值'].between(market_cap_min, market_cap_max)]
-            after_cap_filter_count = len(df)
-            print(f"   - 市值筛选 (50亿-200亿) 后剩余: {after_cap_filter_count} 只")
+            total_cap_col = '总市值' if '总市值' in df.columns else ('total_market_cap' if 'total_market_cap' in df.columns else None)
+            if total_cap_col is not None:
+                df = df[df[total_cap_col].between(50 * 1e8, 200 * 1e8)]
+                after_cap_filter_count = len(df)
+                print(f"   - 市值筛选 (50亿-200亿) 后剩余: {after_cap_filter_count} 只")
+            else:
+                print("   - 当前数据源缺少总市值列，跳过市值筛选")
 
             # 3. 筛选成交量活跃的股票 (排除成交量过低的股票)
             if '成交量' in df.columns:
@@ -89,15 +222,34 @@ class StockDataFetcher:
                 after_volume_filter_count = len(df)
                 print(f"   - 成交量筛选后剩余: {after_volume_filter_count} 只")
 
-            df = df[['代码', '名称', '总市值', '流通市值']].copy()
-            df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
-            
-            df['code'] = df['code'].astype(str)
-            df = df.dropna(subset=['market_cap'])
-            
+            # 统一列名
+            code_col = '代码' if '代码' in df.columns else 'code'
+            name_col = '名称' if '名称' in df.columns else 'name'
+            total_cap_col = '总市值' if '总市值' in df.columns else ('total_market_cap' if 'total_market_cap' in df.columns else None)
+            flow_cap_col = '流通市值' if '流通市值' in df.columns else ('market_cap' if 'market_cap' in df.columns else None)
+
+            # 若没有市值列（TuShare免费路径），则跳过市值过滤并设置占位列
+            if total_cap_col is None or flow_cap_col is None:
+                print("   - 未获取到市值列，暂时跳过市值过滤（TuShare免费路径）")
+                df = df[[code_col, name_col]].copy()
+                df['total_market_cap'] = np.nan
+                df['market_cap'] = np.nan
+            else:
+                df = df[[code_col, name_col, total_cap_col, flow_cap_col]].copy()
+                df.columns = ['code', 'name', 'total_market_cap', 'market_cap']
+                df['code'] = df['code'].astype(str)
+                df = df.dropna(subset=['market_cap'])
+
             final_count = len(df)
             print(f"   - ✅ 预筛选完成，最终候选股票数量: {final_count} (从 {original_count} 筛选而来)")
-            
+
+            # 写入缓存以便下次失败回退
+            try:
+                os.makedirs('cache', exist_ok=True)
+                df.to_csv(cache_path, index=False)
+            except Exception:
+                pass
+
             return df
         except Exception as e:
             print(f"❌ 获取全量A股列表失败: {e}")
@@ -159,8 +311,12 @@ class StockDataFetcher:
             return df
 
         except Exception as e:
-            print(f"❌ 获取 {stock_code} 历史数据失败: {e}")
-            return pd.DataFrame()
+            # Eastmoney 失败时尝试 TuShare 回退
+            try:
+                return self._tushare_fetch_hist(stock_code, start_date, end_date)
+            except Exception as e2:
+                print(f"❌ 获取 {stock_code} 历史数据失败: {e} | 回退失败: {e2}")
+                return pd.DataFrame()
     
     def get_stock_info(self, stock_code):
         """获取股票基本信息"""
