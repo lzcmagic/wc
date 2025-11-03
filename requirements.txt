@@ -8,8 +8,9 @@ requests>=2.25.0
 python-dateutil>=2.8.0
 matplotlib>=3.5.0
 plotly>=5.0.0
-# 使用社区维护版本，模块名仍为 pandas_ta，兼容 Python 3.11
 pandas-ta-classic>=0.3.14b0
 python-dotenv>=0.19.0
 # TuShare 后备数据源
 tushare>=1.2.89
+# pandas-ta>=0.3.14b0
+python-dotenv>=0.19.0 
